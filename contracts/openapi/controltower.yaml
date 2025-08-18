@@ -1,0 +1,334 @@
+openapi: 3.0.3
+info:
+  title: ControlTower API
+  description: Central hub for read-only access to IoT fire monitoring data
+  version: 1.0.0
+  contact:
+    name: Fire IoT MSA Team
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://controltower.azurecontainerapps.io
+    description: Production
+
+paths:
+  /api/v1/healthz:
+    get:
+      summary: Health check endpoint
+      description: Returns service health status
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  /api/v1/alerts:
+    get:
+      summary: List alerts with pagination
+      description: Retrieve alerts with optional filtering and pagination
+      operationId: listAlerts
+      parameters:
+        - name: page
+          in: query
+          description: Page number (0-based)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          description: Page size
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: station_id
+          in: query
+          description: Filter by station ID
+          required: false
+          schema:
+            type: string
+        - name: severity
+          in: query
+          description: Filter by alert severity
+          required: false
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        - name: from
+          in: query
+          description: Filter alerts from this timestamp (ISO8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Filter alerts to this timestamp (ISO8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertListResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/stations/latest:
+    get:
+      summary: Get latest station data
+      description: Retrieve the most recent data for all stations
+      operationId: getLatestStationData
+      parameters:
+        - name: station_ids
+          in: query
+          description: Comma-separated list of station IDs to filter
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Latest station data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationLatestResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/stations/{station_id}/latest:
+    get:
+      summary: Get latest data for specific station
+      description: Retrieve the most recent data for a specific station
+      operationId: getStationLatest
+      parameters:
+        - name: station_id
+          in: path
+          required: true
+          description: Station ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Latest station data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationData'
+        '404':
+          description: Station not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique alert identifier
+        station_id:
+          type: string
+          description: Station that generated the alert
+        rule_id:
+          type: string
+          description: Rule that triggered the alert
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Alert severity level
+        message:
+          type: string
+          description: Human-readable alert message
+        created_at:
+          type: string
+          format: date-time
+          description: When the alert was created
+        dispatched_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the alert was dispatched
+        status:
+          type: string
+          enum: [PENDING, DISPATCHED, ACKNOWLEDGED]
+          description: Current alert status
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional alert metadata
+      required:
+        - id
+        - station_id
+        - rule_id
+        - severity
+        - message
+        - created_at
+        - status
+
+    AlertListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        page:
+          type: integer
+          description: Current page number
+        size:
+          type: integer
+          description: Page size
+        total_elements:
+          type: integer
+          description: Total number of elements
+        total_pages:
+          type: integer
+          description: Total number of pages
+
+    StationData:
+      type: object
+      properties:
+        station_id:
+          type: string
+          description: Station identifier
+        timestamp:
+          type: string
+          format: date-time
+          description: When this data was recorded
+        temperature:
+          type: number
+          format: float
+          description: Temperature reading
+        humidity:
+          type: number
+          format: float
+          description: Humidity reading
+        smoke_level:
+          type: number
+          format: float
+          description: Smoke level reading
+        co_level:
+          type: number
+          format: float
+          description: Carbon monoxide level
+        battery_level:
+          type: number
+          format: float
+          description: Battery level percentage
+        signal_strength:
+          type: number
+          format: float
+          description: Signal strength
+        location:
+          $ref: '#/components/schemas/Location'
+        equipment_status:
+          $ref: '#/components/schemas/EquipmentStatus'
+      required:
+        - station_id
+        - timestamp
+
+    StationLatestResponse:
+      type: object
+      properties:
+        stations:
+          type: array
+          items:
+            $ref: '#/components/schemas/StationData'
+        total_count:
+          type: integer
+          description: Total number of stations
+
+    Location:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        address:
+          type: string
+          nullable: true
+        building_name:
+          type: string
+          nullable: true
+        floor:
+          type: string
+          nullable: true
+        room:
+          type: string
+          nullable: true
+
+    EquipmentStatus:
+      type: object
+      properties:
+        equipment_id:
+          type: string
+        equipment_type:
+          type: string
+          enum: [SENSOR, ALARM, SPRINKLER, CAMERA, COMMUNICATION]
+        status:
+          type: string
+          enum: [OPERATIONAL, WARNING, ERROR, OFFLINE, MAINTENANCE]
+        last_maintenance:
+          type: string
+          format: date-time
+          nullable: true
+        next_maintenance:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: string
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string

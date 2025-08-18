@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DataLake Risk Scored Event",
+  "description": "Event emitted when risk score is calculated for sensor data",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "datalake.risk-scored",
+      "description": "Event type identifier"
+    },
+    "event_version": {
+      "type": "string",
+      "const": "v1",
+      "description": "Event schema version"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event timestamp in ISO8601 UTC format"
+    },
+    "dedupe_key": {
+      "type": "string",
+      "description": "Idempotency key: {station_id}:{ts}:{model_id}"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "station_id": {
+          "type": "string",
+          "description": "Station identifier"
+        },
+        "model_id": {
+          "type": "string",
+          "description": "Risk scoring model identifier"
+        },
+        "scored_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the risk score was calculated"
+        },
+        "risk_score": {
+          "type": "number",
+          "format": "float",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Risk score between 0 and 1"
+        },
+        "risk_level": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+          "description": "Risk level category"
+        },
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "factor_name": {
+                "type": "string",
+                "description": "Risk factor name"
+              },
+              "factor_weight": {
+                "type": "number",
+                "format": "float",
+                "description": "Weight of this factor in the score"
+              },
+              "factor_value": {
+                "type": "number",
+                "format": "float",
+                "description": "Calculated value for this factor"
+              }
+            },
+            "required": ["factor_name", "factor_weight", "factor_value"]
+          },
+          "description": "Individual risk factors that contributed to the score"
+        },
+        "sensor_readings": {
+          "type": "object",
+          "properties": {
+            "temperature": {
+              "type": "number",
+              "format": "float"
+            },
+            "humidity": {
+              "type": "number",
+              "format": "float"
+            },
+            "smoke_level": {
+              "type": "number",
+              "format": "float"
+            },
+            "co_level": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "description": "Sensor readings used for risk calculation"
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": {
+              "type": "number",
+              "format": "double"
+            },
+            "longitude": {
+              "type": "number",
+              "format": "double"
+            },
+            "address": {
+              "type": "string"
+            },
+            "building_name": {
+              "type": "string"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "room": {
+              "type": "string"
+            }
+          },
+          "required": ["latitude", "longitude"]
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Additional risk scoring metadata"
+        }
+      },
+      "required": ["station_id", "model_id", "scored_at", "risk_score", "risk_level", "factors", "sensor_readings", "location"]
+    }
+  },
+  "required": ["event_id", "event_type", "event_version", "timestamp", "dedupe_key", "data"]
+}

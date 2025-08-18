@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Alert Notification Created Event",
+  "description": "Event emitted when a new alert notification is created",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "alert.notification-created",
+      "description": "Event type identifier"
+    },
+    "event_version": {
+      "type": "string",
+      "const": "v1",
+      "description": "Event schema version"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event timestamp in ISO8601 UTC format"
+    },
+    "dedupe_key": {
+      "type": "string",
+      "description": "Idempotency key: {station_id}:{ts}:{rule_id}"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "alert_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique alert identifier"
+        },
+        "station_id": {
+          "type": "string",
+          "description": "Station that generated the alert"
+        },
+        "rule_id": {
+          "type": "string",
+          "description": "Rule that triggered the alert"
+        },
+        "rule_name": {
+          "type": "string",
+          "description": "Human-readable rule name"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+          "description": "Alert severity level"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable alert message"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the alert was created"
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": {
+              "type": "number",
+              "format": "double"
+            },
+            "longitude": {
+              "type": "number",
+              "format": "double"
+            },
+            "address": {
+              "type": "string"
+            },
+            "building_name": {
+              "type": "string"
+            },
+            "floor": {
+              "type": "string"
+            },
+            "room": {
+              "type": "string"
+            }
+          },
+          "required": ["latitude", "longitude"]
+        },
+        "sensor_readings": {
+          "type": "object",
+          "properties": {
+            "temperature": {
+              "type": "number",
+              "format": "float"
+            },
+            "humidity": {
+              "type": "number",
+              "format": "float"
+            },
+            "smoke_level": {
+              "type": "number",
+              "format": "float"
+            },
+            "co_level": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "description": "Sensor readings that triggered the alert"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Additional alert metadata"
+        }
+      },
+      "required": ["alert_id", "station_id", "rule_id", "rule_name", "severity", "message", "created_at", "location"]
+    }
+  },
+  "required": ["event_id", "event_type", "event_version", "timestamp", "dedupe_key", "data"]
+}

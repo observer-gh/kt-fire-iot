@@ -1,0 +1,567 @@
+openapi: 3.0.3
+info:
+  title: StaticManagement API
+  description: Master data management for fire department equipment and maintenance records
+  version: 1.0.0
+  contact:
+    name: Fire IoT MSA Team
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://staticmanagement.azurecontainerapps.io
+    description: Production
+
+paths:
+  /api/v1/healthz:
+    get:
+      summary: Health check endpoint
+      description: Returns service health status
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  /api/v1/equipment:
+    get:
+      summary: List equipment with pagination
+      description: Retrieve equipment records with optional filtering
+      operationId: listEquipment
+      parameters:
+        - name: page
+          in: query
+          description: Page number (0-based)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          description: Page size
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: equipment_type
+          in: query
+          description: Filter by equipment type
+          required: false
+          schema:
+            type: string
+            enum: [SENSOR, ALARM, SPRINKLER, CAMERA, COMMUNICATION, VEHICLE, TOOL]
+        - name: status
+          in: query
+          description: Filter by equipment status
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, INACTIVE, MAINTENANCE, RETIRED]
+        - name: location_id
+          in: query
+          description: Filter by location ID
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of equipment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentListResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Register new equipment
+      description: Create a new equipment record
+      operationId: registerEquipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentCreateRequest'
+      responses:
+        '201':
+          description: Equipment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Equipment already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/equipment/{equipment_id}:
+    get:
+      summary: Get equipment by ID
+      description: Retrieve equipment details by ID
+      operationId: getEquipment
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          description: Equipment ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Equipment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+        '404':
+          description: Equipment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update equipment
+      description: Update equipment information (append-only versioning)
+      operationId: updateEquipment
+      parameters:
+        - name: equipment_id
+          in: path
+          required: true
+          description: Equipment ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentUpdateRequest'
+      responses:
+        '200':
+          description: Equipment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+        '404':
+          description: Equipment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/maintenance:
+    get:
+      summary: List maintenance records
+      description: Retrieve maintenance records with pagination
+      operationId: listMaintenance
+      parameters:
+        - name: page
+          in: query
+          description: Page number (0-based)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          description: Page size
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: equipment_id
+          in: query
+          description: Filter by equipment ID
+          required: false
+          schema:
+            type: string
+        - name: maintenance_type
+          in: query
+          description: Filter by maintenance type
+          required: false
+          schema:
+            type: string
+            enum: [PREVENTIVE, CORRECTIVE, EMERGENCY, INSPECTION]
+        - name: status
+          in: query
+          description: Filter by maintenance status
+          required: false
+          schema:
+            type: string
+            enum: [SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED]
+      responses:
+        '200':
+          description: List of maintenance records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceListResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Record maintenance
+      description: Create a new maintenance record
+      operationId: recordMaintenance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceCreateRequest'
+      responses:
+        '201':
+          description: Maintenance record created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Maintenance'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/maintenance/{maintenance_id}:
+    get:
+      summary: Get maintenance record by ID
+      description: Retrieve maintenance details by ID
+      operationId: getMaintenance
+      parameters:
+        - name: maintenance_id
+          in: path
+          required: true
+          description: Maintenance record ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Maintenance details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Maintenance'
+        '404':
+          description: Maintenance record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Equipment:
+      type: object
+      properties:
+        equipment_id:
+          type: string
+          description: Unique equipment identifier
+        equipment_type:
+          type: string
+          enum: [SENSOR, ALARM, SPRINKLER, CAMERA, COMMUNICATION, VEHICLE, TOOL]
+          description: Type of equipment
+        name:
+          type: string
+          description: Equipment name/description
+        model:
+          type: string
+          description: Equipment model
+        manufacturer:
+          type: string
+          description: Equipment manufacturer
+        serial_number:
+          type: string
+          description: Equipment serial number
+        location_id:
+          type: string
+          description: Associated location ID
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, MAINTENANCE, RETIRED]
+          description: Current equipment status
+        installation_date:
+          type: string
+          format: date-time
+          description: When equipment was installed
+        warranty_expiry:
+          type: string
+          format: date-time
+          nullable: true
+          description: Warranty expiration date
+        last_maintenance:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last maintenance date
+        next_maintenance:
+          type: string
+          format: date-time
+          nullable: true
+          description: Next scheduled maintenance
+        specifications:
+          type: object
+          additionalProperties: true
+          description: Equipment specifications
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        version:
+          type: integer
+          description: Version number for append-only versioning
+      required:
+        - equipment_id
+        - equipment_type
+        - name
+        - status
+        - created_at
+        - version
+
+    EquipmentCreateRequest:
+      type: object
+      properties:
+        equipment_type:
+          type: string
+          enum: [SENSOR, ALARM, SPRINKLER, CAMERA, COMMUNICATION, VEHICLE, TOOL]
+        name:
+          type: string
+        model:
+          type: string
+        manufacturer:
+          type: string
+        serial_number:
+          type: string
+        location_id:
+          type: string
+        installation_date:
+          type: string
+          format: date-time
+        warranty_expiry:
+          type: string
+          format: date-time
+          nullable: true
+        specifications:
+          type: object
+          additionalProperties: true
+      required:
+        - equipment_type
+        - name
+        - location_id
+
+    EquipmentUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        model:
+          type: string
+        manufacturer:
+          type: string
+        serial_number:
+          type: string
+        location_id:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, MAINTENANCE, RETIRED]
+        warranty_expiry:
+          type: string
+          format: date-time
+          nullable: true
+        specifications:
+          type: object
+          additionalProperties: true
+
+    EquipmentListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Equipment'
+        page:
+          type: integer
+          description: Current page number
+        size:
+          type: integer
+          description: Page size
+        total_elements:
+          type: integer
+          description: Total number of elements
+        total_pages:
+          type: integer
+          description: Total number of pages
+
+    Maintenance:
+      type: object
+      properties:
+        maintenance_id:
+          type: string
+          format: uuid
+          description: Unique maintenance record identifier
+        equipment_id:
+          type: string
+          description: Associated equipment ID
+        maintenance_type:
+          type: string
+          enum: [PREVENTIVE, CORRECTIVE, EMERGENCY, INSPECTION]
+          description: Type of maintenance
+        status:
+          type: string
+          enum: [SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED]
+          description: Maintenance status
+        scheduled_date:
+          type: string
+          format: date-time
+          description: Scheduled maintenance date
+        completed_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: When maintenance was completed
+        technician_id:
+          type: string
+          description: Technician assigned to maintenance
+        description:
+          type: string
+          description: Maintenance description
+        findings:
+          type: string
+          nullable: true
+          description: Maintenance findings
+        actions_taken:
+          type: string
+          nullable: true
+          description: Actions taken during maintenance
+        parts_replaced:
+          type: array
+          items:
+            type: string
+          description: List of parts replaced
+        cost:
+          type: number
+          format: float
+          nullable: true
+          description: Maintenance cost
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        version:
+          type: integer
+          description: Version number for append-only versioning
+      required:
+        - maintenance_id
+        - equipment_id
+        - maintenance_type
+        - status
+        - scheduled_date
+        - created_at
+        - version
+
+    MaintenanceCreateRequest:
+      type: object
+      properties:
+        equipment_id:
+          type: string
+        maintenance_type:
+          type: string
+          enum: [PREVENTIVE, CORRECTIVE, EMERGENCY, INSPECTION]
+        scheduled_date:
+          type: string
+          format: date-time
+        technician_id:
+          type: string
+        description:
+          type: string
+        cost:
+          type: number
+          format: float
+          nullable: true
+      required:
+        - equipment_id
+        - maintenance_type
+        - scheduled_date
+        - technician_id
+
+    MaintenanceListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Maintenance'
+        page:
+          type: integer
+          description: Current page number
+        size:
+          type: integer
+          description: Page size
+        total_elements:
+          type: integer
+          description: Total number of elements
+        total_pages:
+          type: integer
+          description: Total number of pages
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string

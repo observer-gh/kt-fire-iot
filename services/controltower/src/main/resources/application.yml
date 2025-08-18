@@ -1,0 +1,89 @@
+spring:
+  application:
+    name: controltower
+  profiles:
+    active: local
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/core}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+server:
+  port: 8080
+
+# OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  info:
+    title: ControlTower API
+    description: Central hub for read-only access to IoT fire monitoring data
+    version: 1.0.0
+    contact:
+      name: Fire IoT MSA Team
+
+# Logging
+logging:
+  level:
+    com.fireiot.controltower: INFO
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+---
+# Local Profile
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/core
+    username: postgres
+    password: postgres
+
+---
+# Cloud Profile
+spring:
+  config:
+    activate:
+      on-profile: cloud
+  datasource:
+    url: ${POSTGRES_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    com.fireiot.controltower: INFO
+    org.springframework.web: WARN
