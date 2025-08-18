@@ -1,99 +1,91 @@
 # Fire IoT MSA
 
-Microservices architecture for IoT fire monitoring system with real-time data processing and alert management.
+Full-stack microservices for IoT fire monitoring with real-time data processing, alert management, and dashboard.
 
 ## 🏗️ Architecture
 
-- **ControlTower** (Java Spring Boot) - Central hub for read-only APIs
-- **StaticManagement** (Java Spring Boot) - Equipment and maintenance data
-- **DataLake** (Python FastAPI) - Data ingestion and streaming processing
-- **Alert** (Python Worker) - Alert deduplication and dispatch
+- **Dashboard** (Next.js + Tailwind) - Frontend dashboard
+- **ControlTower** (Java Spring Boot) - Central hub APIs
+- **StaticManagement** (Java Spring Boot) - Equipment data
+- **DataLake** (Python FastAPI) - Data ingestion
+- **Alert** (Python Worker) - Alert processing
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Java 21 (for local development)
-- Python 3.11 (for local development)
-
-### Start Infrastructure
-
 ```bash
-./infra/start-local.sh
+docker-compose
+node 18+ (for dashboard)
+java 21+ (for backend)
+python 3.11+ (for backend)
 ```
 
-### Build All Services
+### Start Everything
 
 ```bash
-# Python services
-docker build -t fire-iot-datalake services/datalake
-docker build -t fire-iot-alert services/alert
+# Infrastructure
+./infra/start-local.sh
 
-# Java services
+# Frontend
+cd dashboard && npm run dev
+
+# Backend services
+docker-compose -f infra/compose.local.yml up -d
+```
+
+### Build All
+
+```bash
+# Frontend
+cd dashboard && docker build -t fire-iot-dashboard .
+
+# Backend
+docker build -t fire-iot-datalake services/datalake
 docker build -t fire-iot-controltower services/controltower
 docker build -t fire-iot-staticmanagement services/staticmanagement
-```
-
-### Run Services
-
-```bash
-# DataLake API
-docker run -d --name datalake --network infra_fire-iot-network -p 8084:8080 fire-iot-datalake
-
-# ControlTower API
-docker run -d --name controltower --network infra_fire-iot-network -p 8082:8080 \
-  -e POSTGRES_URL=jdbc:postgresql://fire-iot-postgres:5432/core \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres fire-iot-controltower
-
-# Alert Worker
-docker run -d --name alert --network infra_fire-iot-network fire-iot-alert
+docker build -t fire-iot-alert services/alert
 ```
 
 ## 📊 Access Points
 
+- **Dashboard**: http://localhost:3000
+- **ControlTower API**: http://localhost:8082
+- **DataLake API**: http://localhost:8084
 - **Kafka UI**: http://localhost:8090
 - **PgAdmin**: http://localhost:8091
-- **DataLake API**: http://localhost:8084
-- **ControlTower API**: http://localhost:8082
 
-## 🧪 Testing
+## 🚀 Deploy
 
-```bash
-./test-setup.sh
-```
-
-## 🚀 Deployment
-
-### Local Development
+### Local
 
 ```bash
 docker-compose -f infra/compose.local.yml up -d
 ```
 
-### Azure Deployment
+### Azure
 
 ```bash
-# Build and push images
-./infra/aca/build-and-push.sh v1.0.0
-
-# Deploy to Azure
-./infra/aca/deploy-bicep.sh dev your-dockerhub-org v1.0.0
+./infra/aca/deploy-bicep.sh dev your-org v1.0.0
 ```
 
-## 📁 Project Structure
+## 📁 Structure
 
 ```
-├── contracts/           # OpenAPI specs & event schemas
-├── services/           # Microservices
-│   ├── controltower/   # Java Spring Boot
-│   ├── staticmanagement/ # Java Spring Boot
-│   ├── datalake/       # Python FastAPI
-│   └── alert/          # Python Worker
-├── infra/              # Infrastructure & deployment
-└── test-setup.sh       # Testing script
+├── dashboard/          # Next.js frontend
+├── services/           # Backend microservices
+├── contracts/          # OpenAPI + event schemas
+├── infra/              # Docker + Azure config
+└── test-setup.sh       # Testing
 ```
 
 ## 🔧 Development
 
-See individual service READMEs for detailed development instructions.
+```bash
+# Frontend dev
+cd dashboard && npm run dev
+
+# Backend dev
+cd services/datalake && python -m uvicorn app.main:app --reload
+cd services/controltower && ./mvnw spring-boot:run
+```

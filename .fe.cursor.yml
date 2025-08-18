@@ -1,0 +1,149 @@
+version: 1
+project:
+  name: fire-iot-dashboard
+  description: >
+    Full MSA: DataLake, ControlTower, StaticManagement, Alert (backend) +
+    Next.js Tailwind dashboard (frontend).
+    Local (docker-compose) ↔ Cloud (Azure Container Apps / Static Web Apps)
+    seamless transition. Contracts-first (OpenAPI + Event Schemas).
+
+monorepo:
+  layout:
+    - contracts/
+    - services/
+      - datalake/          # FastAPI
+      - controltower/      # Spring Boot
+      - staticmanagement/  # Spring Boot
+      - alert/             # Python worker
+    - dashboard/           # Next.js + Tailwind
+    - infra/
+      - compose.local.yml
+      - aca/
+    - .github/workflows/
+
+frontend:
+  framework: nextjs
+  language: typescript
+  theme:
+    tailwind:
+      config: |
+        import type { Config } from "tailwindcss";
+
+        export default {
+          darkMode: ["class"],
+          content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+          theme: {
+            extend: {
+              colors: {
+                bg: "hsl(var(--bg))",
+                card: "hsl(var(--card))",
+                border: "hsl(var(--border))",
+                text: "hsl(var(--text))",
+                muted: "hsl(var(--muted))",
+                primary: "hsl(var(--primary))",            
+                "primary-fg": "hsl(var(--primary-fg))",
+                ok: "hsl(var(--ok))",
+                warn: "hsl(var(--warn))",
+                emergency: "hsl(var(--emergency))",
+                info: "hsl(var(--info))",
+              },
+              borderRadius: {
+                xl: "12px",
+                "2xl": "16px",
+              },
+              boxShadow: {
+                card: "0 4px 12px rgba(0,0,0,0.10)",
+              },
+              spacing: {
+                1.5: "6px",
+              },
+            },
+          },
+          plugins: [require("@tailwindcss/forms"), require("@tailwindcss/typography")],
+        } satisfies Config;
+      globals: |
+        @tailwind base;
+        @tailwind components;
+        @tailwind utilities;
+
+        :root {
+          --bg: 210 20% 98%;
+          --card: 210 20% 99%;
+          --border: 210 16% 86%;
+          --text: 222 14% 16%;
+          --muted: 215 16% 47%;
+          --primary: 27 100% 50%;     
+          --primary-fg: 0 0% 100%;
+          --ok: 142 72% 45%;         
+          --warn: 38 92% 50%;        
+          --emergency: 0 84% 60%;    
+          --info: 217 91% 60%;       
+        }
+
+        .dark {
+          --bg: 220 30% 8%;
+          --card: 220 26% 12%;
+          --border: 220 16% 22%;
+          --text: 220 15% 92%;
+          --muted: 220 10% 65%;
+          --primary: 27 100% 52%;     
+          --primary-fg: 0 0% 100%;
+          --ok: 142 72% 45%;
+          --warn: 38 92% 50%;
+          --emergency: 0 84% 62%;
+          --info: 217 91% 65%;
+        }
+
+        @layer components {
+          .card { @apply bg-card text-text rounded-2xl shadow-card border border-border; }
+          .btn  { @apply inline-flex items-center gap-2 rounded-xl px-4 py-2 font-medium; }
+          .btn-primary { @apply btn bg-primary text-primary-fg hover:opacity-90; }
+          .btn-ghost { @apply btn bg-transparent text-text border border-border hover:bg-card; }
+          .badge { @apply inline-flex items-center rounded-xl px-2.5 py-1 text-xs font-semibold; }
+          .badge-ok { @apply badge bg-ok/15 text-ok; }
+          .badge-warn { @apply badge bg-warn/15 text-warn; }
+          .badge-emg { @apply badge bg-emergency/15 text-emergency; }
+        }
+    example_component: |
+      <div className="grid gap-4 md:grid-cols-3">
+        <section className="card p-4">
+          <header className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold">Active Alerts</h2>
+            <span className="badge-emg">12</span>
+          </header>
+          <button className="btn-primary">View all</button>
+        </section>
+      </div>
+  env:
+    NEXT_PUBLIC_API_URL: http://localhost:8080   # local
+    # cloud: https://app-controltower.azurecontainerapps.io
+
+env:
+  required:
+    - POSTGRES_URL
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - REDIS_URL
+    - EVENTHUB_CONN
+    - KAFKA_BROKERS
+    - OTEL_EXPORTER_OTLP_ENDPOINT
+    - NEXT_PUBLIC_API_URL
+
+services:
+  datalake:
+    language: python
+    framework: fastapi
+  controltower:
+    language: java
+    framework: spring-boot
+  staticmanagement:
+    language: java
+    framework: spring-boot
+  alert:
+    language: python
+    framework: worker
+
+notes:
+  - FE + BE 모두 env 변수 기반으로 로컬/클라우드 전환.
+  - Tailwind theme = safety-orange accent, status colors, dark/light 지원.
+  - Cursor가 FE scaffold 생성 시 globals.css와 config 통째로 반영.
