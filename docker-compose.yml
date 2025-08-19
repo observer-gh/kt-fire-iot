@@ -1,0 +1,200 @@
+services:
+  # Infrastructure Services (start first)
+  postgres:
+    image: postgres:16-alpine
+    container_name: fire-iot-postgres
+    environment:
+      POSTGRES_DB: core
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d core"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fire-iot-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: fire-iot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fire-iot-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: fire-iot-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fire-iot-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: fire-iot-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fire-iot-network
+
+  # Admin UIs (optional)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: fire-iot-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - fire-iot-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fire-iot-pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@fireiot.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8091:80"
+    networks:
+      - fire-iot-network
+
+  # Backend Services (start after infrastructure)
+  datalake:
+    build: ./services/datalake
+    container_name: fire-iot-datalake
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8084:8080"
+    environment:
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/core
+      - REDIS_URL=redis://redis:6379
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - fire-iot-network
+
+  controltower:
+    build: ./services/controltower
+    container_name: fire-iot-controltower
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+    environment:
+      - POSTGRES_URL=jdbc:postgresql://postgres:5432/core
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - fire-iot-network
+
+  staticmanagement:
+    build: ./services/staticmanagement
+    container_name: fire-iot-staticmanagement
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8080"
+    environment:
+      - POSTGRES_URL=jdbc:postgresql://postgres:5432/core
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    networks:
+      - fire-iot-network
+
+  alert:
+    build: ./services/alert
+    container_name: fire-iot-alert
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - fire-iot-network
+
+  # Frontend Service (start last)
+  dashboard:
+    build: ./dashboard
+    container_name: fire-iot-dashboard
+    depends_on:
+      datalake:
+        condition: service_started
+      controltower:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://datalake:8080
+    networks:
+      - fire-iot-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  fire-iot-network:
+    driver: bridge

@@ -16,35 +16,46 @@ Full-stack microservices for IoT fire monitoring with real-time data processing,
 
 ```bash
 docker-compose
-node 18+ (for dashboard)
-java 21+ (for backend)
-python 3.11+ (for backend)
+node 18+ (for local dashboard dev)
+java 21+ (for local backend dev)
+python 3.11+ (for local backend dev)
 ```
 
-### Start Everything
+### Start Everything (Recommended)
 
 ```bash
-# Infrastructure
-./infra/start-local.sh
+# Start all services with proper dependencies
+docker-compose up -d
+
+# Check status
+docker-compose ps
+```
+
+### Start Infrastructure Only
+
+```bash
+# Start just infrastructure (PostgreSQL, Redis, Kafka)
+docker-compose up -d postgres redis zookeeper kafka kafka-ui pgadmin
+```
+
+### Start Services Individually
+
+```bash
+# Backend services
+docker-compose up -d datalake controltower staticmanagement alert
 
 # Frontend
-cd dashboard && npm run dev
-
-# Backend services
-docker-compose -f infra/compose.local.yml up -d
+docker-compose up -d dashboard
 ```
 
 ### Build All
 
 ```bash
-# Frontend
-cd dashboard && docker build -t fire-iot-dashboard .
+# Build all services
+docker-compose build
 
-# Backend
-docker build -t fire-iot-datalake services/datalake
-docker build -t fire-iot-controltower services/controltower
-docker build -t fire-iot-staticmanagement services/staticmanagement
-docker build -t fire-iot-alert services/alert
+# Build specific service
+docker-compose build datalake
 ```
 
 ## 📊 Access Points
@@ -52,6 +63,7 @@ docker build -t fire-iot-alert services/alert
 - **Dashboard**: http://localhost:3000
 - **ControlTower API**: http://localhost:8082
 - **DataLake API**: http://localhost:8084
+- **StaticManagement API**: http://localhost:8083
 - **Kafka UI**: http://localhost:8090
 - **PgAdmin**: http://localhost:8091
 
@@ -60,7 +72,7 @@ docker build -t fire-iot-alert services/alert
 ### Local
 
 ```bash
-docker-compose -f infra/compose.local.yml up -d
+docker-compose up -d
 ```
 
 ### Azure
@@ -76,6 +88,7 @@ docker-compose -f infra/compose.local.yml up -d
 ├── services/           # Backend microservices
 ├── contracts/          # OpenAPI + event schemas
 ├── infra/              # Docker + Azure config
+├── docker-compose.yml  # All services orchestration
 └── test-setup.sh       # Testing
 ```
 
@@ -88,4 +101,17 @@ cd dashboard && npm run dev
 # Backend dev
 cd services/datalake && python -m uvicorn app.main:app --reload
 cd services/controltower && ./mvnw spring-boot:run
+```
+
+## 🧹 Cleanup
+
+```bash
+# Stop all services
+docker-compose down
+
+# Remove volumes (data)
+docker-compose down -v
+
+# Remove images
+docker-compose down --rmi all
 ```
