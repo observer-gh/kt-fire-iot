@@ -40,13 +40,26 @@ mvn spring-boot:run
 
 ### Docker 실행
 
+#### 단일 컨테이너 실행
 ```bash
-# Docker 이미지 빌드
-mvn clean package
+# Docker 이미지 빌드 및 실행
 docker build -t mock-server .
-
-# Docker 컨테이너 실행
 docker run -p 8080:8080 mock-server
+```
+
+#### Docker Compose 사용 (권장)
+```bash
+# 애플리케이션만 실행 (H2 데이터베이스 사용)
+docker-compose up -d
+
+# PostgreSQL과 함께 실행
+docker-compose --profile postgres up -d
+
+# 로그 확인
+docker-compose logs -f mock-server
+
+# 컨테이너 중지
+docker-compose down
 ```
 
 ## 🌐 API 엔드포인트
