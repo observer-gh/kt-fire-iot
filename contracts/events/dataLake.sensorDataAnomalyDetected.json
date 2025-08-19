@@ -33,6 +33,10 @@
     "detected_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["INFO", "WARN", "EMERGENCY"]
     }
   },
   "required": [
@@ -43,6 +47,7 @@
     "value",
     "threshold",
     "measured_at",
-    "detected_at"
+    "detected_at",
+    "severity"
   ]
 }

@@ -181,7 +181,7 @@ services:
       - POSTGRES_URL=jdbc:postgresql://postgres-controltower:5432/controltower
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     networks:
       - fire-iot-network
 
