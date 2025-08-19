@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8084';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8084";
 
 export interface DataLakeHealth {
   status: string;
@@ -17,7 +17,7 @@ export async function testDataLakeConnection(): Promise<DataLakeHealth> {
     }
     return await response.json();
   } catch (error) {
-    console.error('Failed to connect to DataLake:', error);
+    console.error("Failed to connect to DataLake:", error);
     throw error;
   }
 }
@@ -30,7 +30,7 @@ export async function getDataLakeRoot(): Promise<DataLakeRoot> {
     }
     return await response.json();
   } catch (error) {
-    console.error('Failed to get DataLake root:', error);
+    console.error("Failed to get DataLake root:", error);
     throw error;
   }
 }
