@@ -1,17 +1,25 @@
 import json
 import logging
+import uuid
 from typing import Optional
+from datetime import datetime
 from kafka import KafkaProducer
-from .models import ProcessedSensorData, DataLakeEvent
+from .models import (
+    ProcessedSensorData, 
+    DataLakeEvent, 
+    SensorDataSavedEvent, 
+    SensorDataAnomalyDetectedEvent
+)
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class KafkaPublisher:
-    """Publishes processed sensor data to Kafka topics"""
+    """Publishes events to Kafka topics for ControlTower service"""
 
-    def __init__(self, bootstrap_servers: str = "kafka:29092"):
-        self.bootstrap_servers = bootstrap_servers
+    def __init__(self, bootstrap_servers: Optional[str] = None):
+        self.bootstrap_servers = bootstrap_servers or settings.kafka_bootstrap_servers
         self.producer = None
         self._connect()
 
@@ -29,8 +37,87 @@ class KafkaPublisher:
             logger.error(f"Failed to connect to Kafka: {e}")
             self.producer = None
 
+    def publish_anomaly_detected(self, processed_data: ProcessedSensorData) -> bool:
+        """Publish anomaly detected event to ControlTower"""
+        if not self.producer:
+            logger.error("Kafka producer not connected")
+            return False
+
+        try:
+            # Create anomaly event
+            anomaly_event = SensorDataAnomalyDetectedEvent(
+                event_id=str(uuid.uuid4()),
+                equipment_id=processed_data.equipment_id,
+                facility_id=processed_data.facility_id,
+                metric=processed_data.anomaly_metric,
+                value=processed_data.anomaly_value,
+                threshold=processed_data.anomaly_threshold,
+                measured_at=processed_data.measured_at,
+                detected_at=datetime.utcnow()
+            )
+
+            # Publish to Kafka
+            future = self.producer.send(
+                topic=settings.kafka_topic_anomaly,
+                key=processed_data.equipment_id,
+                value=anomaly_event.dict()
+            )
+
+            # Wait for send to complete
+            record_metadata = future.get(timeout=10)
+
+            logger.info(f"Published anomaly event: equipment={processed_data.equipment_id}, "
+                        f"metric={processed_data.anomaly_metric}, value={processed_data.anomaly_value}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to publish anomaly event: {e}")
+            return False
+
+    def publish_data_saved(self, processed_data: ProcessedSensorData, filepath: str) -> bool:
+        """Publish data saved event to ControlTower"""
+        if not self.producer:
+            logger.error("Kafka producer not connected")
+            return False
+
+        try:
+            # Create data saved event
+            data_saved_event = SensorDataSavedEvent(
+                event_id=str(uuid.uuid4()),
+                equipment_id=processed_data.equipment_id,
+                facility_id=processed_data.facility_id,
+                equipment_location=processed_data.equipment_location,
+                measured_at=processed_data.measured_at,
+                temperature=processed_data.temperature,
+                humidity=processed_data.humidity,
+                smoke_density=processed_data.smoke_density,
+                co_level=processed_data.co_level,
+                gas_level=processed_data.gas_level,
+                ingested_at=processed_data.ingested_at
+            )
+
+            # Publish to Kafka
+            future = self.producer.send(
+                topic=settings.kafka_topic_data_saved,
+                key=processed_data.equipment_id,
+                value=data_saved_event.dict()
+            )
+
+            # Wait for send to complete
+            record_metadata = future.get(timeout=10)
+
+            logger.info(f"Published data saved event: equipment={processed_data.equipment_id}, "
+                        f"filepath={filepath}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to publish data saved event: {e}")
+            return False
+
     def publish_sensor_data(self, processed_data: ProcessedSensorData) -> bool:
-        """Publish processed sensor data to Kafka"""
+        """Publish processed sensor data to Kafka (legacy method)"""
         if not self.producer:
             logger.error("Kafka producer not connected")
             return False
@@ -39,37 +126,26 @@ class KafkaPublisher:
             # Create event
             event = DataLakeEvent(
                 event_type="sensor.data.processed",
-                data=processed_data
+                data=processed_data.dict()
             )
-
-            # Determine topic based on data type
-            topic = self._get_topic(processed_data)
 
             # Publish to Kafka
             future = self.producer.send(
-                topic=topic,
-                key=processed_data.station_id,
+                topic=settings.kafka_topic_sensor_data,
+                key=processed_data.equipment_id,
                 value=event.dict()
             )
 
             # Wait for send to complete
             record_metadata = future.get(timeout=10)
 
-            logger.info(f"Published to {topic}: station={processed_data.station_id}, "
-                        f"value={processed_data.value}, alert={processed_data.is_alert}")
+            logger.info(f"Published sensor data: equipment={processed_data.equipment_id}")
 
             return True
 
         except Exception as e:
-            logger.error(f"Failed to publish to Kafka: {e}")
+            logger.error(f"Failed to publish sensor data: {e}")
             return False
-
-    def _get_topic(self, data: ProcessedSensorData) -> str:
-        """Determine Kafka topic based on data type"""
-        if data.is_alert:
-            return "fire-iot.alerts"
-        else:
-            return "fire-iot.sensor-data"
 
     def close(self):
         """Close Kafka producer"""

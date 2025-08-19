@@ -5,6 +5,7 @@ Data ingestion and streaming processing service for IoT fire monitoring.
 ## 🚀 Quick Start
 
 ### With Docker Compose (Recommended)
+
 ```bash
 # Start all services including DataLake
 docker-compose up -d
@@ -14,6 +15,7 @@ docker-compose up -d postgres redis kafka datalake
 ```
 
 ### Manual Build & Run
+
 ```bash
 # Build
 docker build -t fire-iot-datalake .
@@ -23,10 +25,13 @@ docker run -d --name datalake --network fire-iot-network -p 8084:8080 \
   -e POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/core \
   -e REDIS_URL=redis://redis:6379 \
   -e KAFKA_BROKERS=kafka:29092 \
+  -e STORAGE_TYPE=mock \
+  -e BATCH_SIZE=100 \
   fire-iot-datalake
 ```
 
 ### Local Development
+
 ```bash
 # Install dependencies
 pip install -r requirements.txt
@@ -39,50 +44,117 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 
 - `GET /healthz` - Health check
 - `POST /ingest` - Ingest sensor data from external APIs
+- `POST /trigger-batch-upload` - Manually trigger batch upload
+- `GET /stats` - Service statistics and storage info
+- `GET /storage/batches` - Get uploaded batches (MockStorage only)
+- `DELETE /storage/batches` - Clear batch tracking (MockStorage only)
 - `GET /docs` - API documentation (Swagger UI)
 
 ## 🔄 Data Flow
 
 ```
-External API → DataLake (clean/process) → Kafka → Other Services
+External API → DataLake (clean/process) → Database → Storage → Kafka → Other Services
 ```
 
 ### Data Processing
-- **Validation**: Sensor type and value bounds
-- **Cleaning**: Out-of-range values clamped
-- **Alert Detection**: Automatic threshold checking
-- **Event Publishing**: Kafka topics based on data type
+
+- **Validation**: Sensor data validation and bounds checking
+- **Cleaning**: Out-of-range values clamped to valid ranges
+- **Anomaly Detection**: Automatic threshold-based anomaly detection
+- **Database Storage**: Real-time data stored in PostgreSQL
+- **Batch Upload**: Configurable batch processing to file storage
+- **Event Publishing**: Kafka topics for anomaly detection and data saved events
 
 ### Kafka Topics
-- `fire-iot.alerts` - Alert events (HIGH/CRITICAL severity)
+
+- `fire-iot.anomaly-detected` - Anomaly detection events
+- `fire-iot.data-saved` - Data saved to storage events
 - `fire-iot.sensor-data` - Normal sensor readings
+
+## 🗄️ Storage Types
+
+### MockStorage (Local Testing)
+
+- **Default**: `STORAGE_TYPE=mock`
+- **Batch Size**: 100 records (configurable)
+- **Storage**: Local filesystem (JSON files)
+- **Features**: Batch tracking, statistics, testing endpoints
+
+### StorageService (Production)
+
+- **Set**: `STORAGE_TYPE=production`
+- **Batch Size**: 1000 records (configurable)
+- **Storage**: Production storage paths
+- **Features**: Production-optimized batch processing
 
 ## 🧪 Testing
 
 ### Test Data Ingestion
+
 ```bash
-# Temperature alert
+# Normal sensor data
 curl -X POST http://localhost:8084/ingest \
   -H "Content-Type: application/json" \
   -d '{
-    "station_id": "station-001",
-    "sensor_type": "temperature",
-    "value": 85.5,
-    "timestamp": "2024-01-15T10:30:00Z"
+    "equipment_id": "EQ001",
+    "facility_id": "FAC001",
+    "equipment_location": "Building A, Floor 1",
+    "measured_at": "2024-01-01T12:00:00Z",
+    "temperature": 25.5,
+    "humidity": 60.2,
+    "smoke_density": 0.001,
+    "co_level": 0.005,
+    "gas_level": 0.002
   }'
 
-# Smoke critical alert
+# Temperature anomaly (above 80°C threshold)
 curl -X POST http://localhost:8084/ingest \
   -H "Content-Type: application/json" \
   -d '{
-    "station_id": "station-002",
-    "sensor_type": "smoke",
-    "value": 600.0,
-    "timestamp": "2024-01-15T10:31:00Z"
+    "equipment_id": "EQ002",
+    "facility_id": "FAC001",
+    "measured_at": "2024-01-01T12:00:00Z",
+    "temperature": 85.0,
+    "humidity": 65.0
+  }'
+
+# Smoke critical anomaly (above 500ppm threshold)
+curl -X POST http://localhost:8084/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "equipment_id": "EQ003",
+    "facility_id": "FAC001",
+    "measured_at": "2024-01-01T12:00:00Z",
+    "smoke_density": 600.0
   }'
 ```
 
+### Batch Processing Test
+
+```bash
+# Send 100 records to trigger batch upload
+for i in {1..100}; do
+  curl -X POST http://localhost:8084/ingest \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"equipment_id\": \"EQ00$i\",
+      \"measured_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+      \"temperature\": $((20 + i % 10))
+    }"
+done
+
+# Check batch upload status
+curl http://localhost:8084/stats
+
+# Manually trigger batch upload
+curl -X POST http://localhost:8084/trigger-batch-upload
+
+# View uploaded batches (MockStorage only)
+curl http://localhost:8084/storage/batches
+```
+
 ### Health Check
+
 ```bash
 curl http://localhost:8084/healthz
 ```
@@ -91,22 +163,74 @@ curl http://localhost:8084/healthz
 
 ```
 app/
-├── main.py              # FastAPI application + ingest endpoint
+├── main.py              # FastAPI application + endpoints
+├── config.py            # Configuration management
+├── database.py          # Database connection
+├── db_models.py         # SQLAlchemy ORM models
 ├── models.py            # Pydantic data models
-├── processor.py         # Data cleaning & alert detection
-└── publisher.py         # Kafka event publishing
+├── processor.py         # Data cleaning & anomaly detection
+├── publisher.py         # Kafka event publishing
+├── scheduler.py         # Batch upload scheduler
+├── storage_interface.py # Storage interface abstraction
+├── storage_service.py   # Production storage service
+└── mock_storage.py      # Mock storage for testing
 ```
 
 ## 🔧 Configuration
 
 ### Environment Variables
-- `POSTGRES_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string  
-- `KAFKA_BROKERS` - Kafka broker addresses
 
-### Sensor Thresholds
-- **Temperature**: Alert at 80°C (HIGH), 95°C (CRITICAL)
-- **Humidity**: Alert at 90% (HIGH), 98% (CRITICAL)
-- **Smoke**: Alert at 100ppm (HIGH), 500ppm (CRITICAL)
-- **CO2**: Alert at 1000ppm (HIGH), 2000ppm (CRITICAL)
-- **Pressure**: Alert at 1050hPa (HIGH), 1080hPa (CRITICAL)
+- `POSTGRES_URL` - PostgreSQL connection string
+- `POSTGRES_USER` - PostgreSQL username
+- `POSTGRES_PASSWORD` - PostgreSQL password
+- `POSTGRES_HOST` - PostgreSQL host
+- `POSTGRES_PORT` - PostgreSQL port
+- `POSTGRES_DB` - PostgreSQL database name
+- `REDIS_URL` - Redis connection string
+- `KAFKA_BROKERS` - Kafka broker addresses
+- `STORAGE_TYPE` - Storage type: `mock` or `production`
+- `BATCH_SIZE` - Batch size for uploads
+- `BATCH_INTERVAL_MINUTES` - Batch processing interval
+- `STORAGE_PATH` - Storage directory path
+
+### Anomaly Detection Thresholds
+
+- **Temperature**: Alert at 80°C (WARN), 95°C (EMERGENCY)
+- **Humidity**: Alert at 90% (WARN), 98% (EMERGENCY)
+- **Smoke Density**: Alert at 100ppm (WARN), 500ppm (EMERGENCY)
+- **CO Level**: Alert at 50ppm (WARN), 200ppm (EMERGENCY)
+- **Gas Level**: Alert at 100ppm (WARN), 500ppm (EMERGENCY)
+
+### Database Schema
+
+The service uses the following tables:
+
+- `facility` - Facility information
+- `equipment` - Equipment information
+- `realtime` - Real-time sensor data
+- `alert` - Alert information
+- `incident` - Incident information
+- `analysis` - Analysis results
+- `equipment_maintanence` - Equipment maintenance
+
+## 🚀 Docker Compose Testing
+
+For complete infrastructure testing, see `DOCKER_COMPOSE_TEST.md`:
+
+```bash
+# Start entire infrastructure
+docker-compose up -d
+
+# Test DataLake service
+curl http://localhost:8084/healthz
+curl http://localhost:8084/stats
+```
+
+## 📊 Monitoring
+
+- **Real-time records count**
+- **Active alerts count**
+- **Storage type and configuration**
+- **Batch scheduler status**
+- **Storage statistics (MockStorage)**
+- **Uploaded batches tracking**

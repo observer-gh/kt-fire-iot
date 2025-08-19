@@ -164,6 +164,23 @@ services:
       - POSTGRES_URL=postgresql://postgres:postgres@postgres-datalake:5432/datalake
       - REDIS_URL=redis://redis:6379
       - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC_ANOMALY=fire-iot.anomaly-detected
+      - KAFKA_TOPIC_DATA_SAVED=fire-iot.data-saved
+      - KAFKA_TOPIC_SENSOR_DATA=fire-iot.sensor-data
+      # Storage Configuration (MockStorage for local testing)
+      - STORAGE_TYPE=mock
+      - BATCH_SIZE=100
+      - BATCH_INTERVAL_MINUTES=10
+      - STORAGE_PATH=/app/local_storage
+      # Service Configuration
+      - SERVICE_PORT=8080
+      - SERVICE_HOST=0.0.0.0
+      # Logging
+      - LOG_LEVEL=INFO
+      # Legacy (for compatibility)
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - datalake_storage:/app/local_storage
     networks:
       - fire-iot-network
 
@@ -252,6 +269,8 @@ volumes:
   postgres_facilitymanagement_data:
     driver: local
   redis_data:
+    driver: local
+  datalake_storage:
     driver: local
 
 networks:
