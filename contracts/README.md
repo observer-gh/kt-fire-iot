@@ -8,7 +8,7 @@ API contracts and event schemas for the Fire IoT MSA.
 contracts/
 ├── openapi/              # OpenAPI specifications
 │   ├── controltower.yaml
-│   └── staticmanagement.yaml
+│   └── facilitymanagement.yaml
 └── events/               # Event schemas
     ├── datalake.data-received.json
     ├── datalake.detected.json
@@ -27,7 +27,7 @@ npm install -g swagger-cli
 
 # Validate specs
 swagger-cli validate contracts/openapi/controltower.yaml
-swagger-cli validate contracts/openapi/staticmanagement.yaml
+swagger-cli validate contracts/openapi/facilitymanagement.yaml
 ```
 
 ### Generate Client Code

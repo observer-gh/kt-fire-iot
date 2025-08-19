@@ -1,4 +1,4 @@
--- StaticManagement Database Schema
+-- FacilityManagement Database Schema
 -- V1: Initial schema for equipment and maintenance management
 
 CREATE TABLE equipment (

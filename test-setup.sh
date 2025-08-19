@@ -59,7 +59,7 @@ fi
 echo -e "${YELLOW}3. Testing Service Structure...${NC}"
 
 # Check if all service directories exist
-SERVICES=("controltower" "staticmanagement" "datalake" "alert")
+SERVICES=("controltower" "facilitymanagement" "datalake" "alert")
 
 for service in "${SERVICES[@]}"; do
     if [ -d "services/$service" ]; then
@@ -82,7 +82,7 @@ for service in "${SERVICES[@]}"; do
 done
 
 # Check Java POM files
-for service in "controltower" "staticmanagement"; do
+for service in "controltower" "facilitymanagement"; do
     if [ -f "services/$service/pom.xml" ]; then
         echo -e "${GREEN}   ✅ $service pom.xml exists${NC}"
     else
@@ -123,10 +123,10 @@ else
     echo -e "${RED}   ❌ ControlTower OpenAPI spec missing${NC}"
 fi
 
-if [ -f "contracts/openapi/staticmanagement.yaml" ]; then
-    echo -e "${GREEN}   ✅ StaticManagement OpenAPI spec exists${NC}"
+if [ -f "contracts/openapi/facilitymanagement.yaml" ]; then
+    echo -e "${GREEN}   ✅ FacilityManagement OpenAPI spec exists${NC}"
 else
-    echo -e "${RED}   ❌ StaticManagement OpenAPI spec missing${NC}"
+    echo -e "${RED}   ❌ FacilityManagement OpenAPI spec missing${NC}"
 fi
 
 # Check event schemas

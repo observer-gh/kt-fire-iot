@@ -1,4 +1,4 @@
-# StaticManagement
+# FacilityManagement
 
 Master data management service for fire department equipment and maintenance records.
 
@@ -11,7 +11,7 @@ Master data management service for fire department equipment and maintenance rec
 mvn clean package
 
 # With Docker
-docker build -t fire-iot-staticmanagement .
+docker build -t fire-iot-facilitymanagement .
 ```
 
 ### Run
@@ -21,9 +21,9 @@ docker build -t fire-iot-staticmanagement .
 mvn spring-boot:run
 
 # With Docker
-docker run -d --name staticmanagement --network infra_fire-iot-network -p 8083:8080 \
+docker run -d --name facilitymanagement --network infra_fire-iot-network -p 8083:8080 \
   -e POSTGRES_URL=jdbc:postgresql://fire-iot-postgres:5432/core \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres fire-iot-staticmanagement
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres fire-iot-facilitymanagement
 ```
 
 ### Test
@@ -73,8 +73,8 @@ mvn test -Dspring.profiles.active=test
 ```
 src/
 ├── main/
-│   ├── java/com/fireiot/staticmanagement/
-│   │   ├── StaticManagementApplication.java
+│   ├── java/com/fireiot/facilitymanagement/
+│   │   ├── FacilityManagementApplication.java
 │   │   ├── controllers/     # REST controllers
 │   │   ├── services/        # Business logic
 │   │   ├── repositories/    # Data access

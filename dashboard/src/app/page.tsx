@@ -48,7 +48,7 @@ export default function Home() {
             Fire IoT Dashboard
           </h1>
           <p className="text-muted">
-            Full MSA: DataLake, ControlTower, StaticManagement, Alert
+            Full MSA: DataLake, ControlTower, FacilityManagement, Alert
           </p>
         </header>
 

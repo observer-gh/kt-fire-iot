@@ -6,7 +6,7 @@ Full-stack microservices for IoT fire monitoring with real-time data processing,
 
 - **Dashboard** (Next.js + Tailwind) - Frontend dashboard
 - **ControlTower** (Java Spring Boot) - Central hub APIs
-- **StaticManagement** (Java Spring Boot) - Equipment data
+- **FacilityManagement** (Java Spring Boot) - Equipment data
 - **DataLake** (Python FastAPI) - Data ingestion
 - **Alert** (Python Worker) - Alert processing
 
@@ -42,7 +42,7 @@ docker-compose up -d postgres redis zookeeper kafka kafka-ui pgadmin
 
 ```bash
 # Backend services
-docker-compose up -d datalake controltower staticmanagement alert
+docker-compose up -d datalake controltower facilitymanagement alert
 
 # Frontend
 docker-compose up -d dashboard
@@ -63,7 +63,7 @@ docker-compose build datalake
 - **Dashboard**: http://localhost:3000
 - **ControlTower API**: http://localhost:8082
 - **DataLake API**: http://localhost:8084
-- **StaticManagement API**: http://localhost:8083
+- **FacilityManagement API**: http://localhost:8083
 - **Kafka UI**: http://localhost:8090
 - **PgAdmin**: http://localhost:8091
 

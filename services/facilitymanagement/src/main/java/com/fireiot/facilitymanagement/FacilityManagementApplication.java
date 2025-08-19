@@ -1,12 +1,12 @@
-package com.fireiot.staticmanagement;
+package com.fireiot.facilitymanagement;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class StaticManagementApplication {
+public class FacilityManagementApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(StaticManagementApplication.class, args);
+        SpringApplication.run(FacilityManagementApplication.class, args);
     }
 }

@@ -108,9 +108,9 @@ resource controlTowerApp 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
-// StaticManagement Container App
-resource staticManagementApp 'Microsoft.App/containerApps@2023-05-01' = {
-  name: '${appNamePrefix}-staticmanagement'
+// FacilityManagement Container App
+resource facilityManagementApp 'Microsoft.App/containerApps@2023-05-01' = {
+  name: '${appNamePrefix}-facilitymanagement'
   location: location
   properties: {
     managedEnvironmentId: containerAppsEnvironment.id
@@ -130,8 +130,8 @@ resource staticManagementApp 'Microsoft.App/containerApps@2023-05-01' = {
     template: {
       containers: [
         {
-          name: 'staticmanagement'
-          image: '${dockerHubOrg}/staticmanagement:${imageTag}'
+          name: 'facilitymanagement'
+          image: '${dockerHubOrg}/facilitymanagement:${imageTag}'
           env: [
             {
               name: 'SPRING_PROFILES_ACTIVE'
@@ -298,6 +298,6 @@ resource alertApp 'Microsoft.App/containerApps@2023-05-01' = {
 
 // Outputs
 output controlTowerUrl string = 'https://${controlTowerApp.properties.configuration.ingress.fqdn}'
-output staticManagementUrl string = 'https://${staticManagementApp.properties.configuration.ingress.fqdn}'
+output facilityManagementUrl string = 'https://${facilityManagementApp.properties.configuration.ingress.fqdn}'
 output dataLakeUrl string = 'https://${dataLakeApp.properties.configuration.ingress.fqdn}'
 output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id

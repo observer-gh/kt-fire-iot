@@ -144,9 +144,9 @@ services:
     networks:
       - fire-iot-network
 
-  staticmanagement:
-    build: ./services/staticmanagement
-    container_name: fire-iot-staticmanagement
+  facilitymanagement:
+    build: ./services/facilitymanagement
+    container_name: fire-iot-facilitymanagement
     depends_on:
       postgres:
         condition: service_healthy

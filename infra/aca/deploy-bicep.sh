@@ -75,12 +75,12 @@ CONTROLTOWER_URL=$(az deployment group show \
     --output tsv)
 echo -e "${GREEN}   ControlTower: $CONTROLTOWER_URL${NC}"
 
-STATICMANAGEMENT_URL=$(az deployment group show \
+FACILITYMANAGEMENT_URL=$(az deployment group show \
     --resource-group $RESOURCE_GROUP \
     --name main \
-    --query properties.outputs.staticManagementUrl.value \
+    --query properties.outputs.facilityManagementUrl.value \
     --output tsv)
-echo -e "${GREEN}   StaticManagement: $STATICMANAGEMENT_URL${NC}"
+echo -e "${GREEN}   FacilityManagement: $FACILITYMANAGEMENT_URL${NC}"
 
 DATALAKE_URL=$(az deployment group show \
     --resource-group $RESOURCE_GROUP \
