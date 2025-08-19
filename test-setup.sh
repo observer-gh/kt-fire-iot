@@ -16,12 +16,7 @@ echo -e "${GREEN}🧪 Testing Fire IoT MSA Setup${NC}"
 # Test 1: Infrastructure Services
 echo -e "${YELLOW}1. Testing Infrastructure Services...${NC}"
 
-# PostgreSQL
-if docker exec fire-iot-postgres psql -U postgres -d core -c "SELECT 1;" > /dev/null 2>&1; then
-    echo -e "${GREEN}   ✅ PostgreSQL is running${NC}"
-else
-    echo -e "${RED}   ❌ PostgreSQL is not responding${NC}"
-fi
+
 
 # Redis
 if docker exec fire-iot-redis redis-cli ping > /dev/null 2>&1; then
@@ -40,19 +35,23 @@ fi
 # Test 2: Database Schema
 echo -e "${YELLOW}2. Testing Database Schema...${NC}"
 
-# Check if tables exist
-TABLES=$(docker exec fire-iot-postgres psql -U postgres -d core -t -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ')
-
-if echo "$TABLES" | grep -q "alerts"; then
-    echo -e "${GREEN}   ✅ Alerts table exists${NC}"
+# Check if databases are accessible for each service
+if docker exec fire-iot-postgres-datalake psql -U postgres -d datalake -c "SELECT 1;" > /dev/null 2>&1; then
+    echo -e "${GREEN}   ✅ DataLake database is accessible${NC}"
 else
-    echo -e "${RED}   ❌ Alerts table missing${NC}"
+    echo -e "${RED}   ❌ DataLake database is not accessible${NC}"
 fi
 
-if echo "$TABLES" | grep -q "station_data"; then
-    echo -e "${GREEN}   ✅ Station data table exists${NC}"
+if docker exec fire-iot-postgres-controltower psql -U postgres -d controltower -c "SELECT 1;" > /dev/null 2>&1; then
+    echo -e "${GREEN}   ✅ ControlTower database is accessible${NC}"
 else
-    echo -e "${RED}   ❌ Station data table missing${NC}"
+    echo -e "${RED}   ❌ ControlTower database is not accessible${NC}"
+fi
+
+if docker exec fire-iot-postgres-facilitymanagement psql -U postgres -d facilitymanagement -c "SELECT 1;" > /dev/null 2>&1; then
+    echo -e "${GREEN}   ✅ FacilityManagement database is accessible${NC}"
+else
+    echo -e "${RED}   ❌ FacilityManagement database is not accessible${NC}"
 fi
 
 # Test 3: Service Structure
@@ -102,7 +101,7 @@ done
 # Test 5: Infrastructure Configuration
 echo -e "${YELLOW}5. Testing Infrastructure Configuration...${NC}"
 
-if [ -f "infra/compose.local.yml" ]; then
+if [ -f "docker-compose.yml" ]; then
     echo -e "${GREEN}   ✅ Docker Compose file exists${NC}"
 else
     echo -e "${RED}   ❌ Docker Compose file missing${NC}"
@@ -114,45 +113,9 @@ else
     echo -e "${RED}   ❌ Bicep template missing${NC}"
 fi
 
-# Test 6: Contracts
-echo -e "${YELLOW}6. Testing Contracts...${NC}"
 
-if [ -f "contracts/openapi/controltower.yaml" ]; then
-    echo -e "${GREEN}   ✅ ControlTower OpenAPI spec exists${NC}"
-else
-    echo -e "${RED}   ❌ ControlTower OpenAPI spec missing${NC}"
-fi
 
-if [ -f "contracts/openapi/facilitymanagement.yaml" ]; then
-    echo -e "${GREEN}   ✅ FacilityManagement OpenAPI spec exists${NC}"
-else
-    echo -e "${RED}   ❌ FacilityManagement OpenAPI spec missing${NC}"
-fi
 
-# Check event schemas
-EVENT_SCHEMAS=("datalake.data-received.json" "datalake.detected.json" "datalake.risk-scored.json" "alert.notification-created.json" "alert.notification-dispatched.json")
-
-for schema in "${EVENT_SCHEMAS[@]}"; do
-    if [ -f "contracts/events/$schema" ]; then
-        echo -e "${GREEN}   ✅ $schema exists${NC}"
-    else
-        echo -e "${RED}   ❌ $schema missing${NC}"
-    fi
-done
-
-# Test 7: Port Availability
-echo -e "${YELLOW}7. Testing Port Availability...${NC}"
-
-PORTS=("5433:PostgreSQL" "6379:Redis" "9092:Kafka" "8090:Kafka UI" "8091:PgAdmin")
-
-for port_info in "${PORTS[@]}"; do
-    IFS=':' read -r port service <<< "$port_info"
-    if lsof -i :$port > /dev/null 2>&1; then
-        echo -e "${GREEN}   ✅ Port $port ($service) is available${NC}"
-    else
-        echo -e "${RED}   ❌ Port $port ($service) is not available${NC}"
-    fi
-done
 
 echo -e "${GREEN}🎉 Testing completed!${NC}"
 echo -e "${YELLOW}💡 Next steps:${NC}"

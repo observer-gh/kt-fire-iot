@@ -1,19 +1,56 @@
 services:
   # Infrastructure Services (start first)
-  postgres:
+  postgres-datalake:
     image: postgres:16-alpine
-    container_name: fire-iot-postgres
+    container_name: fire-iot-postgres-datalake
     environment:
-      POSTGRES_DB: core
+      POSTGRES_DB: datalake
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./infra/init-scripts:/docker-entrypoint-initdb.d
+      - postgres_datalake_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d core"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d datalake"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fire-iot-network
+
+  postgres-controltower:
+    image: postgres:16-alpine
+    container_name: fire-iot-postgres-controltower
+    environment:
+      POSTGRES_DB: controltower
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_controltower_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d controltower"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fire-iot-network
+
+  postgres-facilitymanagement:
+    image: postgres:16-alpine
+    container_name: fire-iot-postgres-facilitymanagement
+    environment:
+      POSTGRES_DB: facilitymanagement
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_facilitymanagement_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d facilitymanagement"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -96,7 +133,11 @@ services:
     image: dpage/pgadmin4:latest
     container_name: fire-iot-pgadmin
     depends_on:
-      postgres:
+      postgres-datalake:
+        condition: service_healthy
+      postgres-controltower:
+        condition: service_healthy
+      postgres-facilitymanagement:
         condition: service_healthy
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@fireiot.local
@@ -113,14 +154,14 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-      postgres:
+      postgres-datalake:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
       - "8084:8080"
     environment:
-      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/core
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres-datalake:5432/datalake
       - REDIS_URL=redis://redis:6379
       - KAFKA_BROKERS=kafka:29092
     networks:
@@ -130,14 +171,14 @@ services:
     build: ./services/controltower
     container_name: fire-iot-controltower
     depends_on:
-      postgres:
+      postgres-controltower:
         condition: service_healthy
       kafka:
         condition: service_healthy
     ports:
       - "8082:8080"
     environment:
-      - POSTGRES_URL=jdbc:postgresql://postgres:5432/core
+      - POSTGRES_URL=jdbc:postgresql://postgres-controltower:5432/controltower
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - KAFKA_BROKERS=kafka:29092
@@ -148,12 +189,12 @@ services:
     build: ./services/facilitymanagement
     container_name: fire-iot-facilitymanagement
     depends_on:
-      postgres:
+      postgres-facilitymanagement:
         condition: service_healthy
     ports:
       - "8083:8080"
     environment:
-      - POSTGRES_URL=jdbc:postgresql://postgres:5432/core
+      - POSTGRES_URL=jdbc:postgresql://postgres-facilitymanagement:5432/facilitymanagement
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     networks:
@@ -196,7 +237,11 @@ services:
       - fire-iot-network
 
 volumes:
-  postgres_data:
+  postgres_datalake_data:
+    driver: local
+  postgres_controltower_data:
+    driver: local
+  postgres_facilitymanagement_data:
     driver: local
   redis_data:
     driver: local

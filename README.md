@@ -67,6 +67,12 @@ docker-compose build datalake
 - **Kafka UI**: http://localhost:8090
 - **PgAdmin**: http://localhost:8091
 
+## 🗄️ Databases
+
+- **DataLake DB**: localhost:5433/datalake
+- **ControlTower DB**: localhost:5434/controltower
+- **FacilityManagement DB**: localhost:5435/facilitymanagement
+
 ## 🚀 Deploy
 
 ### Local
