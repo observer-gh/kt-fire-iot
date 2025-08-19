@@ -6,10 +6,8 @@ Infrastructure configuration and deployment scripts for Fire IoT MSA.
 
 ```
 infra/
-├── compose.local.yml     # Local development environment
 ├── env.local            # Local environment variables
 ├── env.cloud            # Cloud environment variables
-├── start-local.sh       # Local startup script
 ├── aca/                 # Azure Container Apps
 │   ├── main.bicep       # Bicep template
 │   ├── parameters.dev.bicepparam
@@ -20,22 +18,22 @@ infra/
 
 ## 🚀 Local Development
 
-### Start Infrastructure
+### Start All Services
 
 ```bash
-./infra/start-local.sh
+docker-compose up -d
 ```
 
-### Stop Infrastructure
+### Stop All Services
 
 ```bash
-docker-compose -f infra/compose.local.yml down
+docker-compose down
 ```
 
 ### Check Status
 
 ```bash
-docker-compose -f infra/compose.local.yml ps
+docker-compose ps
 ```
 
 ## ☁️ Azure Deployment
@@ -67,7 +65,9 @@ az containerapp list --resource-group fire-iot-rg
 
 ### Ports
 
-- **PostgreSQL**: 5433 (local), 5432 (container)
+- **DataLake PostgreSQL**: 5433 (local), 5432 (container)
+- **ControlTower PostgreSQL**: 5434 (local), 5432 (container)
+- **FacilityManagement PostgreSQL**: 5435 (local), 5432 (container)
 - **Redis**: 6379
 - **Kafka**: 9092
 - **Kafka UI**: 8090
@@ -84,8 +84,10 @@ az containerapp list --resource-group fire-iot-rg
 ### Health Checks
 
 ```bash
-# PostgreSQL
-docker exec fire-iot-postgres pg_isready -U postgres
+# PostgreSQL Databases
+docker exec fire-iot-postgres-datalake pg_isready -U postgres
+docker exec fire-iot-postgres-controltower pg_isready -U postgres
+docker exec fire-iot-postgres-facilitymanagement pg_isready -U postgres
 
 # Redis
 docker exec fire-iot-redis redis-cli ping

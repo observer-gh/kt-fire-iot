@@ -12,9 +12,9 @@
     </parent>
 
     <groupId>com.fireiot</groupId>
-    <artifactId>staticmanagement</artifactId>
+    <artifactId>facilitymanagement</artifactId>
     <version>1.0.0</version>
-    <name>StaticManagement</name>
+    <name>FacilityManagement</name>
     <description>Master data management for fire department equipment and maintenance records</description>
 
     <properties>

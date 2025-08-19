@@ -66,9 +66,9 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: jdbc:postgresql://localhost:5432/core
-    username: postgres
-    password: postgres
+    url: ${POSTGRES_URL:jdbc:postgresql://postgres-controltower:5432/controltower}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
 
 ---
 # Cloud Profile

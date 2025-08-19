@@ -1,6 +1,6 @@
 spring:
   application:
-    name: staticmanagement
+    name: facilitymanagement
   profiles:
     active: local
   datasource:

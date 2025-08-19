@@ -2,7 +2,7 @@ version: 1
 project:
   name: fire-iot-dashboard
   description: >
-    Full MSA: DataLake, ControlTower, StaticManagement, Alert (backend) +
+    Full MSA: DataLake, ControlTower, FacilityManagement, Alert (backend) +
     Next.js Tailwind dashboard (frontend).
     Local (docker-compose) ↔ Cloud (Azure Container Apps / Static Web Apps)
     seamless transition. Contracts-first (OpenAPI + Event Schemas).
@@ -13,7 +13,7 @@ monorepo:
     - services/
       - datalake/          # FastAPI
       - controltower/      # Spring Boot
-      - staticmanagement/  # Spring Boot
+      - facilitymanagement/  # Spring Boot
       - alert/             # Python worker
     - dashboard/           # Next.js + Tailwind
     - infra/
@@ -136,7 +136,7 @@ services:
   controltower:
     language: java
     framework: spring-boot
-  staticmanagement:
+  facilitymanagement:
     language: java
     framework: spring-boot
   alert:
