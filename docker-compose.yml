@@ -190,7 +190,7 @@ services:
       dockerfile: Dockerfile.dashboard
     container_name: fire-iot-datalake-dashboard
     depends_on:
-      postgres:
+      postgres-datalake:
         condition: service_healthy
       datalake:
         condition: service_started
@@ -198,12 +198,12 @@ services:
       - "8501:8501"
     environment:
       # Database Configuration (for dashboard data access)
-      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/core
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres-datalake:5432/datalake
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_HOST=postgres
+      - POSTGRES_HOST=postgres-datalake
       - POSTGRES_PORT=5432
-      - POSTGRES_DB=core
+      - POSTGRES_DB=datalake
       # Dashboard Configuration
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0

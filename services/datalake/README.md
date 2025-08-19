@@ -57,12 +57,14 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501 --server.addres
 
 ## 📊 APIs
 
-- `GET /healthz` - Health check
+- `GET /healthz` - Health check with Redis status
+- `GET /redis/status` - Redis connection status and info
 - `POST /ingest` - Ingest sensor data from external APIs
 - `POST /trigger-batch-upload` - Manually trigger batch upload
-- `GET /stats` - Service statistics and storage info
+- `GET /stats` - Service statistics and storage info (with Redis caching)
 - `GET /storage/batches` - Get uploaded batches (MockStorage only)
 - `DELETE /storage/batches` - Clear batch tracking (MockStorage only)
+- `DELETE /cache` - Clear Redis cache
 - `GET /docs` - API documentation (Swagger UI)
 
 ## 🎯 Real-time Dashboard
@@ -108,8 +110,24 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501
 ## 🔄 Data Flow
 
 ```
-External API → DataLake (clean/process) → Database → Storage → Kafka → Other Services
+External API → DataLake (clean/process) → Database → Redis Cache → Storage → Kafka → Other Services
 ```
+
+## 🗄️ Redis Caching
+
+The DataLake service now includes Redis caching for improved performance:
+
+- **Stats Caching**: Service statistics are cached for 5 minutes to reduce database queries
+- **Health Monitoring**: Redis connection status is included in health checks
+- **Cache Management**: Dedicated endpoints for cache status and clearing
+- **Performance**: Faster response times for frequently accessed data
+
+### Redis Configuration
+
+- **URL**: Configurable via `REDIS_URL` environment variable
+- **Default**: `redis://redis:6379` (Docker Compose)
+- **Fallback**: `redis://localhost:6379` (Local development)
+- **Connection**: Automatic connection with health monitoring
 
 ### Data Processing
 

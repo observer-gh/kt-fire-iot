@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     postgres_port: int = int(os.getenv("POSTGRES_PORT", "5432"))
     postgres_db: str = os.getenv("POSTGRES_DB", "fire_iot")
     
+    # Redis settings
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    
     # Kafka settings
     kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "kafka:29092")
     kafka_topic_anomaly: str = os.getenv("KAFKA_TOPIC_ANOMALY", "fire-iot.anomaly-detected")

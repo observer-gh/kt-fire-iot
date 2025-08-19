@@ -16,6 +16,7 @@ from .scheduler import BatchScheduler
 from .database import get_db, engine
 from .db_models import Base
 from .config import settings
+from .redis_client import redis_client
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.log_level))
@@ -61,10 +62,46 @@ async def shutdown_event():
     """Shutdown event - stop batch scheduler and cleanup"""
     await batch_scheduler.stop()
     kafka_publisher.close()
+    redis_client.close()
 
 @app.get("/healthz")
 async def health_check():
-    return {"status": "healthy", "service": "datalake"}
+    """Health check endpoint with Redis status"""
+    redis_status = "healthy" if redis_client.is_connected() else "unhealthy"
+    return {
+        "status": "healthy", 
+        "service": "datalake",
+        "redis": redis_status,
+        "storage_type": settings.storage_type
+    }
+
+
+@app.get("/redis/status")
+async def redis_status():
+    """Get Redis connection status and info"""
+    try:
+        if not redis_client.is_connected():
+            return {
+                "connected": False,
+                "url": settings.redis_url,
+                "error": "Redis connection failed"
+            }
+        
+        # Get Redis info
+        redis_info = {
+            "connected": True,
+            "url": settings.redis_url,
+            "ping": "pong"
+        }
+        
+        return redis_info
+    except Exception as e:
+        logger.error(f"Redis status check error: {e}")
+        return {
+            "connected": False,
+            "url": settings.redis_url,
+            "error": str(e)
+        }
 
 
 @app.get("/")
@@ -147,8 +184,16 @@ async def trigger_batch_upload():
 
 @app.get("/stats")
 async def get_stats(db: Session = Depends(get_db)):
-    """Get service statistics"""
+    """Get service statistics with Redis caching"""
     try:
+        # Try to get stats from Redis cache first
+        cache_key = "datalake:stats"
+        cached_stats = redis_client.get(cache_key)
+        
+        if cached_stats:
+            logger.info("Returning cached stats from Redis")
+            return cached_stats
+        
         from sqlalchemy import func
         from .db_models import Realtime, Alert
         
@@ -163,15 +208,23 @@ async def get_stats(db: Session = Depends(get_db)):
         # Get storage stats
         storage_stats = storage_service.get_storage_stats() if hasattr(storage_service, 'get_storage_stats') else {}
         
-        return {
+        stats_data = {
             "realtime_records": realtime_count,
             "active_alerts": alert_count,
             "storage_type": settings.storage_type,
             "batch_size": storage_service.batch_size,
             "batch_interval_minutes": storage_service.batch_interval,
             "scheduler_running": batch_scheduler.is_running,
-            "storage_stats": storage_stats
+            "storage_stats": storage_stats,
+            "cached": False
         }
+        
+        # Cache the stats in Redis for 5 minutes
+        if redis_client.is_connected():
+            redis_client.set(cache_key, stats_data, ex=300)
+            stats_data["cached"] = True
+        
+        return stats_data
     except Exception as e:
         logger.error(f"Stats error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get stats")
@@ -206,6 +259,32 @@ async def clear_uploaded_batches():
     except Exception as e:
         logger.error(f"Error clearing uploaded batches: {e}")
         raise HTTPException(status_code=500, detail="Failed to clear uploaded batches")
+
+
+@app.delete("/cache")
+async def clear_cache():
+    """Clear Redis cache"""
+    try:
+        if not redis_client.is_connected():
+            raise HTTPException(status_code=503, detail="Redis is not connected")
+        
+        # Clear all datalake related cache keys
+        cache_patterns = ["datalake:*"]
+        cleared_count = 0
+        
+        # For simplicity, we'll clear specific known keys
+        known_keys = ["datalake:stats"]
+        for key in known_keys:
+            if redis_client.delete(key):
+                cleared_count += 1
+        
+        return {
+            "status": "success", 
+            "message": f"Cache cleared successfully. Cleared {cleared_count} keys."
+        }
+    except Exception as e:
+        logger.error(f"Cache clear error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear cache")
 
 
 if __name__ == "__main__":
