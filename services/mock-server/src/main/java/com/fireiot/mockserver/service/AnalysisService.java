@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,11 +48,34 @@ public class AnalysisService {
         return analysisRepository.findByRiskProbabilityGreaterThan(minProbability);
     }
 
-    public List<Analysis> getAnalysesByConfidenceScoreRange(BigDecimal minScore, BigDecimal maxScore) {
+    public List<Analysis> getAnalysesByConfidenceScoreRange(BigDecimal minScore,
+            BigDecimal maxScore) {
         return analysisRepository.findByConfidenceScoreRange(minScore, maxScore);
     }
 
-    public List<Analysis> getAnalysesByRiskProbabilityRange(BigDecimal minProb, BigDecimal maxProb) {
+    public List<Analysis> getAnalysesByConfidenceRange(BigDecimal minConfidence,
+            BigDecimal maxConfidence) {
+        return analysisRepository.findByConfidenceScoreBetween(minConfidence, maxConfidence);
+    }
+
+    public List<Analysis> getAnalysesByRiskRange(BigDecimal minRisk, BigDecimal maxRisk) {
+        return analysisRepository.findByRiskProbabilityBetween(minRisk, maxRisk);
+    }
+
+    public List<Analysis> getAnalysesByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
+        return analysisRepository.findByCreatedAtBetween(startDate, endDate);
+    }
+
+    public List<Analysis> getAnalysesWithHighConfidence(BigDecimal threshold) {
+        return analysisRepository.findByConfidenceScoreGreaterThan(threshold);
+    }
+
+    public List<Analysis> getAnalysesWithHighRisk(BigDecimal threshold) {
+        return analysisRepository.findByRiskProbabilityGreaterThan(threshold);
+    }
+
+    public List<Analysis> getAnalysesByRiskProbabilityRange(BigDecimal minProb,
+            BigDecimal maxProb) {
         return analysisRepository.findByRiskProbabilityRange(minProb, maxProb);
     }
 

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -27,4 +28,6 @@ public interface AlertRepository extends JpaRepository<Alert, String> {
 
     @Query("SELECT a FROM Alert a WHERE a.equipmentLocation LIKE %:location%")
     List<Alert> findByLocationContaining(@Param("location") String location);
+
+    List<Alert> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
 }

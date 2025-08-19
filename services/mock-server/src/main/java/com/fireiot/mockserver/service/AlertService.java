@@ -5,6 +5,7 @@ import com.fireiot.mockserver.repository.AlertRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,6 +45,18 @@ public class AlertService {
 
     public List<Alert> getAlertsByStatus(String status) {
         return alertRepository.findByStatus(status);
+    }
+
+    public List<Alert> getAlertsByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
+        return alertRepository.findByCreatedAtBetween(startDate, endDate);
+    }
+
+    public List<Alert> getActiveAlerts() {
+        return alertRepository.findByStatus("ACTIVE");
+    }
+
+    public List<Alert> getResolvedAlerts() {
+        return alertRepository.findByStatus("RESOLVED");
     }
 
     public List<Alert> getUnresolvedAlerts() {

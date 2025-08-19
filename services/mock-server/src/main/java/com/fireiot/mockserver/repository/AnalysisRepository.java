@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -25,8 +26,16 @@ public interface AnalysisRepository extends JpaRepository<Analysis, String> {
     List<Analysis> findByRiskProbabilityGreaterThan(BigDecimal minProbability);
 
     @Query("SELECT a FROM Analysis a WHERE a.confidenceScore >= :minScore AND a.confidenceScore <= :maxScore")
-    List<Analysis> findByConfidenceScoreRange(@Param("minScore") BigDecimal minScore, @Param("maxScore") BigDecimal maxScore);
+    List<Analysis> findByConfidenceScoreRange(@Param("minScore") BigDecimal minScore,
+            @Param("maxScore") BigDecimal maxScore);
 
     @Query("SELECT a FROM Analysis a WHERE a.riskProbability >= :minProb AND a.riskProbability <= :maxProb")
-    List<Analysis> findByRiskProbabilityRange(@Param("minProb") BigDecimal minProb, @Param("maxProb") BigDecimal maxProb);
+    List<Analysis> findByRiskProbabilityRange(@Param("minProb") BigDecimal minProb,
+            @Param("maxProb") BigDecimal maxProb);
+
+    List<Analysis> findByConfidenceScoreBetween(BigDecimal minScore, BigDecimal maxScore);
+
+    List<Analysis> findByRiskProbabilityBetween(BigDecimal minProb, BigDecimal maxProb);
+
+    List<Analysis> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
 }
