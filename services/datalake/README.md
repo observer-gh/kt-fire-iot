@@ -12,6 +12,9 @@ docker-compose up -d
 
 # Start just DataLake and dependencies
 docker-compose up -d postgres redis kafka datalake
+
+# Start DataLake dashboard
+docker-compose up -d datalake-dashboard
 ```
 
 ### Manual Build & Run
@@ -28,6 +31,12 @@ docker run -d --name datalake --network fire-iot-network -p 8084:8080 \
   -e STORAGE_TYPE=mock \
   -e BATCH_SIZE=100 \
   fire-iot-datalake
+
+# Build and run dashboard
+docker build -f Dockerfile.dashboard -t fire-iot-datalake-dashboard .
+docker run -d --name datalake-dashboard --network fire-iot-network -p 8501:8501 \
+  -e POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/core \
+  fire-iot-datalake-dashboard
 ```
 
 ### Local Development
@@ -36,8 +45,14 @@ docker run -d --name datalake --network fire-iot-network -p 8084:8080 \
 # Install dependencies
 pip install -r requirements.txt
 
-# Run with hot reload
+# Run API service with hot reload
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+
+# Run dashboard
+streamlit run app/dashboard/main_dashboard.py --server.port=8501 --server.address=0.0.0.0
+
+# Or use the provided script
+./start_dashboard.sh
 ```
 
 ## 📊 APIs
@@ -49,6 +64,50 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 - `GET /storage/batches` - Get uploaded batches (MockStorage only)
 - `DELETE /storage/batches` - Clear batch tracking (MockStorage only)
 - `GET /docs` - API documentation (Swagger UI)
+
+## 🎯 Real-time Dashboard
+
+The DataLake service includes a comprehensive real-time monitoring dashboard built with Streamlit.
+
+### Dashboard Features
+
+- **Real-time Sensor Monitoring**: Live gauge charts for temperature, humidity, smoke density, CO level, and gas level
+- **Historical Data Visualization**: Time series charts with configurable time ranges (1 hour, 24 hours, 7 days)
+- **Facility Overview**: Heatmap showing sensor status across different facilities
+- **Equipment Status Map**: Visual representation of equipment locations and health status
+- **Alert Management**: Real-time alert detection and display with severity levels
+- **Data Quality Monitoring**: Detection of missing data and quality issues
+- **Equipment Health Scoring**: Health status calculation based on sensor readings
+
+### Access Dashboard
+
+```bash
+# Via Docker Compose
+docker-compose up -d datalake-dashboard
+# Then open http://localhost:8501 in your browser
+
+# Via Local Development
+streamlit run app/dashboard/main_dashboard.py --server.port=8501
+
+# Via Script
+./start_dashboard.sh
+```
+
+### Dashboard Controls
+
+- **Facility Filter**: Select specific facilities to monitor
+- **Time Range**: Choose between real-time, 1 hour, 24 hours, or 7 days
+- **Sensor Selection**: Show/hide specific sensor types
+- **Auto Refresh**: Automatic updates every 30 seconds
+- **Manual Refresh**: Manual refresh button for immediate updates
+
+### Alert Thresholds
+
+- **Temperature**: HIGH at 40°C, CRITICAL at 60°C
+- **Humidity**: HIGH at 90%, CRITICAL at 95%
+- **Smoke Density**: HIGH at 0.500, CRITICAL at 1.000
+- **CO Level**: HIGH at 30.000 ppm, CRITICAL at 50.000 ppm
+- **Gas Level**: HIGH at 100.000 ppm, CRITICAL at 200.000 ppm
 
 ## 🔄 Data Flow
 
