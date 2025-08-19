@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
 from datetime import datetime
 import asyncio
 from sqlalchemy.orm import Session
+import uuid
 
 from .models import RawSensorData, ProcessedSensorData
 from .processor import DataProcessor
@@ -103,13 +104,27 @@ async def ingest_sensor_data(
             processed_data
         )
 
-        return {
-            "status": "success",
-            "message": "Data ingested and processed",
-            "equipment_id": processed_data.equipment_id,
-            "is_anomaly": processed_data.is_anomaly,
-            "anomaly_metric": processed_data.anomaly_metric
-        }
+        # 이상치가 있는 경우에만 응답 반환
+        if processed_data.is_anomaly:
+            logger.info(f"🚨 이상치 탐지됨: {processed_data.anomaly_metric} = {processed_data.anomaly_value} (임계값: {processed_data.anomaly_threshold})")
+            response_data = {
+                "version": 1,
+                "event_id": str(uuid.uuid4()),
+                "equipment_id": processed_data.equipment_id,
+                "facility_id": processed_data.facility_id,
+                "metric": processed_data.anomaly_metric,
+                "value": processed_data.anomaly_value,
+                "threshold": processed_data.anomaly_threshold,
+                "rule_id": None,
+                "measured_at": processed_data.measured_at,
+                "detected_at": processed_data.ingested_at
+            }
+            logger.info(f"📤 이상치 응답 반환: {response_data}")
+            return response_data
+        else:
+            # 정상 데이터인 경우 204 No Content 반환
+            logger.info(f"✅ 정상 데이터 처리 완료: {processed_data.equipment_id}")
+            return Response(status_code=204)
 
     except ValueError as e:
         logger.error(f"Data validation error: {e}")

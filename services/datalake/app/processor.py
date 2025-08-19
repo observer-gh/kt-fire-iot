@@ -48,7 +48,7 @@ class DataProcessor:
         # Clean and validate values
         cleaned_data = cls._clean_values(raw_data)
 
-        # Check for anomalies
+        # Check for anomalies using cleaned data
         is_anomaly, anomaly_metric, anomaly_value, anomaly_threshold = cls._check_anomalies(cleaned_data)
 
         # Create processed data
@@ -123,44 +123,40 @@ class DataProcessor:
     def _check_anomalies(cls, data: RawSensorData) -> Tuple[bool, Optional[str], Optional[float], Optional[float]]:
         """Check if any sensor values trigger anomalies"""
         
+        print(f"🔍 이상치 탐지 시작: temp={data.temperature}, smoke={data.smoke_density}, co={data.co_level}")
+        
         # Check temperature
         if data.temperature is not None:
             thresholds = cls.THRESHOLDS["temperature"]
+            print(f"🌡️ 온도 검사: {data.temperature} vs warn={thresholds['warn']}, emergency={thresholds['emergency']}")
             if data.temperature >= thresholds["emergency"]:
+                print(f"🚨 온도 비상 이상치: {data.temperature} >= {thresholds['emergency']}")
                 return True, "temperature", data.temperature, thresholds["emergency"]
             elif data.temperature >= thresholds["warn"]:
+                print(f"⚠️ 온도 경고 이상치: {data.temperature} >= {thresholds['warn']}")
                 return True, "temperature", data.temperature, thresholds["warn"]
-
-        # Check humidity
-        if data.humidity is not None:
-            thresholds = cls.THRESHOLDS["humidity"]
-            if data.humidity >= thresholds["emergency"]:
-                return True, "humidity", data.humidity, thresholds["emergency"]
-            elif data.humidity >= thresholds["warn"]:
-                return True, "humidity", data.humidity, thresholds["warn"]
 
         # Check smoke_density
         if data.smoke_density is not None:
             thresholds = cls.THRESHOLDS["smoke_density"]
+            print(f"💨 연기 검사: {data.smoke_density} vs warn={thresholds['warn']}, emergency={thresholds['emergency']}")
             if data.smoke_density >= thresholds["emergency"]:
+                print(f"🚨 연기 비상 이상치: {data.smoke_density} >= {thresholds['emergency']}")
                 return True, "smoke_density", data.smoke_density, thresholds["emergency"]
             elif data.smoke_density >= thresholds["warn"]:
+                print(f"⚠️ 연기 경고 이상치: {data.smoke_density} >= {thresholds['warn']}")
                 return True, "smoke_density", data.smoke_density, thresholds["warn"]
 
         # Check co_level
         if data.co_level is not None:
             thresholds = cls.THRESHOLDS["co_level"]
+            print(f"☠️ CO 검사: {data.co_level} vs warn={thresholds['warn']}, emergency={thresholds['emergency']}")
             if data.co_level >= thresholds["emergency"]:
+                print(f"🚨 CO 비상 이상치: {data.co_level} >= {thresholds['emergency']}")
                 return True, "co_level", data.co_level, thresholds["emergency"]
             elif data.co_level >= thresholds["warn"]:
+                print(f"⚠️ CO 경고 이상치: {data.co_level} >= {thresholds['warn']}")
                 return True, "co_level", data.co_level, thresholds["warn"]
 
-        # Check gas_level
-        if data.gas_level is not None:
-            thresholds = cls.THRESHOLDS["gas_level"]
-            if data.gas_level >= thresholds["emergency"]:
-                return True, "gas_level", data.gas_level, thresholds["emergency"]
-            elif data.gas_level >= thresholds["warn"]:
-                return True, "gas_level", data.gas_level, thresholds["warn"]
-
+        print("✅ 이상치 없음")
         return False, None, None, None

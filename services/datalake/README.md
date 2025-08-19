@@ -73,11 +73,8 @@ The DataLake service includes a comprehensive real-time monitoring dashboard bui
 
 - **Real-time Sensor Monitoring**: Live gauge charts for temperature, humidity, smoke density, CO level, and gas level
 - **Historical Data Visualization**: Time series charts with configurable time ranges (1 hour, 24 hours, 7 days)
-- **Facility Overview**: Heatmap showing sensor status across different facilities
-- **Equipment Status Map**: Visual representation of equipment locations and health status
 - **Alert Management**: Real-time alert detection and display with severity levels
 - **Data Quality Monitoring**: Detection of missing data and quality issues
-- **Equipment Health Scoring**: Health status calculation based on sensor readings
 
 ### Access Dashboard
 
@@ -95,7 +92,6 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501
 
 ### Dashboard Controls
 
-- **Facility Filter**: Select specific facilities to monitor
 - **Time Range**: Choose between real-time, 1 hour, 24 hours, or 7 days
 - **Sensor Selection**: Show/hide specific sensor types
 - **Auto Refresh**: Automatic updates every 30 seconds
@@ -264,13 +260,8 @@ app/
 
 The service uses the following tables:
 
-- `facility` - Facility information
-- `equipment` - Equipment information
 - `realtime` - Real-time sensor data
 - `alert` - Alert information
-- `incident` - Incident information
-- `analysis` - Analysis results
-- `equipment_maintanence` - Equipment maintenance
 
 ## 🚀 Docker Compose Testing
 

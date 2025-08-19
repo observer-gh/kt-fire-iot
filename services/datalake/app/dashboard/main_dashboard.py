@@ -166,26 +166,15 @@ def main():
         else:
             st.info("No historical data available for the selected time range.")
     
-    # Facility/Equipment status
-    st.subheader("🏢 Facility Status Overview")
+    # Equipment status overview
+    st.subheader("📊 Equipment Status Overview")
     
-    facility_summary = data_manager.get_facility_summary()
-    if facility_summary:
-        # Create facility summary table
-        facility_df = pd.DataFrame(facility_summary)
-        st.dataframe(facility_df, use_container_width=True)
-        
-        # Facility heatmap
-        facility_heatmap = charts.create_facility_heatmap(facility_summary)
-        st.plotly_chart(facility_heatmap, use_container_width=True)
-    else:
-        st.info("No facility data available.")
-    
-    # Equipment status map
     if equipment_status:
-        st.subheader("📍 Equipment Status Map")
-        equipment_map = charts.create_equipment_status_map(equipment_status)
-        st.plotly_chart(equipment_map, use_container_width=True)
+        # Create equipment summary table
+        equipment_df = pd.DataFrame(equipment_status)
+        st.dataframe(equipment_df, use_container_width=True)
+    else:
+        st.info("No equipment data available.")
     
     # Active alerts
     st.subheader("🚨 Active Alerts")

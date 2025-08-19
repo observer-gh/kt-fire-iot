@@ -139,47 +139,7 @@ class SensorCharts:
         
         return fig
         
-    def create_facility_heatmap(self, facility_data: List[Dict[str, Any]]) -> go.Figure:
-        """Create heatmap showing sensor status across locations"""
-        if not facility_data:
-            return self._create_empty_chart("No facility data available")
-        
-        df = pd.DataFrame(facility_data)
-        
-        # Create heatmap data
-        facilities = df['facility_id'].unique()
-        metrics = ['equipment_count', 'total_readings', 'avg_temperature', 'max_smoke_density']
-        
-        heatmap_data = []
-        for facility in facilities:
-            facility_info = df[df['facility_id'] == facility].iloc[0]
-            row = []
-            for metric in metrics:
-                value = facility_info.get(metric, 0)
-                if pd.isna(value):
-                    value = 0
-                row.append(value)
-            heatmap_data.append(row)
-        
-        fig = go.Figure(data=go.Heatmap(
-            z=heatmap_data,
-            x=metrics,
-            y=facilities,
-            colorscale='RdYlGn_r',
-            text=[[f"{val:.2f}" if isinstance(val, float) else str(val) for val in row] for row in heatmap_data],
-            texttemplate="%{text}",
-            textfont={"size": 10},
-            hoverongaps=False
-        ))
-        
-        fig.update_layout(
-            title="Facility Status Overview",
-            xaxis_title="Metrics",
-            yaxis_title="Facilities",
-            height=400
-        )
-        
-        return fig
+
         
     def create_alert_distribution_chart(self, alert_data: Dict[str, int]) -> go.Figure:
         """Create pie chart for alert severity distribution"""
@@ -207,69 +167,7 @@ class SensorCharts:
         
         return fig
         
-    def create_equipment_status_map(self, equipment_data: List[Dict[str, Any]]) -> go.Figure:
-        """Create equipment location map with status indicators"""
-        if not equipment_data:
-            return self._create_empty_chart("No equipment data available")
-        
-        df = pd.DataFrame(equipment_data)
-        
-        # Create scatter plot for equipment locations
-        fig = go.Figure()
-        
-        # Group by facility
-        for facility_id in df['facility_id'].unique():
-            facility_equipment = df[df['facility_id'] == facility_id]
-            
-            # Create synthetic coordinates for visualization (in real app, use actual GPS coordinates)
-            x_coords = []
-            y_coords = []
-            status_colors = []
-            equipment_names = []
-            
-            for idx, equipment in facility_equipment.iterrows():
-                # Generate synthetic coordinates based on equipment location
-                x_coords.append(hash(equipment.get('equipment_location', '')) % 100)
-                y_coords.append(hash(equipment.get('equipment_id', '')) % 100)
-                
-                # Determine status color based on health
-                if equipment.get('temperature', 0) > 40 or equipment.get('smoke_density', 0) > 0.5:
-                    status_colors.append('#dc3545')  # Red
-                elif equipment.get('temperature', 0) > 30 or equipment.get('smoke_density', 0) > 0.2:
-                    status_colors.append('#ffc107')  # Yellow
-                else:
-                    status_colors.append('#28a745')  # Green
-                
-                equipment_names.append(equipment.get('equipment_id', 'Unknown'))
-            
-            fig.add_trace(go.Scatter(
-                x=x_coords,
-                y=y_coords,
-                mode='markers+text',
-                name=facility_id,
-                text=equipment_names,
-                textposition="top center",
-                marker=dict(
-                    size=15,
-                    color=status_colors,
-                    symbol='circle'
-                ),
-                hovertemplate="<b>%{text}</b><br>" +
-                            "Facility: " + facility_id + "<br>" +
-                            "Location: %{customdata}<br>" +
-                            "<extra></extra>",
-                customdata=[eq.get('equipment_location', 'Unknown') for eq in facility_equipment.itertuples()]
-            ))
-        
-        fig.update_layout(
-            title="Equipment Status Map",
-            xaxis_title="X Coordinate",
-            yaxis_title="Y Coordinate",
-            height=500,
-            showlegend=True
-        )
-        
-        return fig
+
     
     def create_metrics_dashboard(self, metrics_data: Dict[str, Any]) -> go.Figure:
         """Create a comprehensive metrics dashboard"""

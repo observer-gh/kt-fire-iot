@@ -7,7 +7,7 @@ from sqlalchemy import text, func
 import pandas as pd
 
 from ..database import get_db
-from ..db_models import Realtime, Facility, Equipment, Alert
+from ..db_models import Realtime, Alert
 
 logger = logging.getLogger(__name__)
 
