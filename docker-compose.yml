@@ -168,6 +168,12 @@ services:
       redis:
         condition: service_healthy
     environment:
+      - ALERT_ENVIRONMENT=local
+      - ALERT_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - ALERT_KAFKA_WARNING_TOPIC=WarningNotificationCreated
+      - ALERT_KAFKA_EMERGENCY_TOPIC=EmergencyAlertTriggered
+      - ALERT_KAFKA_GROUP_ID=alert-service
+      - ALERT_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/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
       - KAFKA_BROKERS=kafka:29092
       - REDIS_URL=redis://redis:6379
     networks:
