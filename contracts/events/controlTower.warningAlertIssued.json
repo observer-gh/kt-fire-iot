@@ -18,10 +18,10 @@
       "type": ["null", "string"]
     },
     "alert_type": {
-      "$ref": "#/definitions/AlertType"
+      "$ref": "commonEnums.json#/definitions/AlertType"
     },
     "severity": {
-      "$ref": "#/definitions/Severity"
+      "$ref": "commonEnums.json#/definitions/Severity"
     },
     "status": {
       "type": "string"
@@ -39,15 +39,5 @@
     "severity",
     "status",
     "created_at"
-  ],
-  "definitions": {
-    "AlertType": {
-      "type": "string",
-      "enum": ["SMOKE", "GAS", "CO", "HEAT", "POWER", "COMM", "CUSTOM"]
-    },
-    "Severity": {
-      "type": "string",
-      "enum": ["INFO", "WARN", "EMERGENCY"]
-    }
-  }
+  ]
 }

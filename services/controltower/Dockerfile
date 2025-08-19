@@ -1,9 +1,15 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
+
+# Copy pom.xml first for better layer caching
 COPY pom.xml .
 RUN mvn -q -DskipTests dependency:go-offline
+
+# Copy source code
 COPY src ./src
-RUN mvn -q -DskipTests package
+
+# Build without tests for faster build
+RUN mvn -q -DskipTests clean package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

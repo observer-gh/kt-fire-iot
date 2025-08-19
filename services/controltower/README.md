@@ -1,6 +1,6 @@
 # ControlTower
 
-Central hub service providing read-only APIs for IoT fire monitoring data.
+Central hub service providing read-only APIs for IoT fire monitoring data. no db for now
 
 ## 🚀 Quick Start
 
