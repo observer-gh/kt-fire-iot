@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "equipment_id": {
+      "type": "string"
+    },
+    "facility_id": {
+      "type": ["null", "string"]
+    },
+    "metric": {
+      "type": "string"
+    },
+    "value": {
+      "type": "number"
+    },
+    "threshold": {
+      "type": "number"
+    },
+    "rule_id": {
+      "type": ["null", "string"]
+    },
+    "measured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "version",
+    "event_id",
+    "equipment_id",
+    "metric",
+    "value",
+    "threshold",
+    "measured_at",
+    "detected_at"
+  ]
+}

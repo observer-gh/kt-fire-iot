@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "maintenance_log_id": {
+      "type": "string"
+    },
+    "equipment_id": {
+      "type": "string"
+    },
+    "facility_id": {
+      "type": ["null", "string"]
+    },
+    "maintenance_type": {
+      "$ref": "#/definitions/MaintenanceType"
+    },
+    "scheduled_date": {
+      "type": ["null", "string"],
+      "format": "date-time"
+    },
+    "note": {
+      "type": ["null", "string"]
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "version",
+    "maintenance_log_id",
+    "equipment_id",
+    "maintenance_type",
+    "requested_at"
+  ],
+  "definitions": {
+    "MaintenanceType": {
+      "type": "string",
+      "enum": ["INSPECTION", "REPAIR", "REPLACE", "CLEAN", "CALIBRATE", "OTHER"]
+    }
+  }
+}
