@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "equipment_id": {
+      "type": "string"
+    },
+    "facility_id": {
+      "type": ["null", "string"]
+    },
+    "equipment_location": {
+      "type": ["null", "string"]
+    },
+    "measured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "temperature": {
+      "type": ["null", "number"],
+      "minimum": -999.99,
+      "maximum": 999.99
+    },
+    "humidity": {
+      "type": ["null", "number"],
+      "minimum": 0,
+      "maximum": 999.99
+    },
+    "smoke_density": {
+      "type": ["null", "number"],
+      "minimum": 0,
+      "maximum": 999.999
+    },
+    "co_level": {
+      "type": ["null", "number"],
+      "minimum": 0,
+      "maximum": 999.999
+    },
+    "gas_level": {
+      "type": ["null", "number"],
+      "minimum": 0,
+      "maximum": 999.999
+    },
+    "ingested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "version",
+    "event_id",
+    "equipment_id",
+    "measured_at",
+    "ingested_at"
+  ]
+}

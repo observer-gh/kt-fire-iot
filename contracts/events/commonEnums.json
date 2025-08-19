@@ -1,0 +1,16 @@
+{
+  "definitions": {
+    "Severity": {
+      "type": "string",
+      "enum": ["INFO", "WARN", "EMERGENCY"]
+    },
+    "AlertType": {
+      "type": "string",
+      "enum": ["SMOKE", "GAS", "CO", "HEAT", "POWER", "COMM", "CUSTOM"]
+    },
+    "MaintenanceType": {
+      "type": "string",
+      "enum": ["INSPECTION", "REPAIR", "REPLACE", "CLEAN", "CALIBRATE", "OTHER"]
+    }
+  }
+}

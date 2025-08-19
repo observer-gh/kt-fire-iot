@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "equipment_id": {
+      "type": "string"
+    },
+    "facility_id": {
+      "type": ["null", "string"]
+    },
+    "changes": {
+      "type": "object",
+      "properties": {
+        "equipment_location": {
+          "type": ["null", "string"]
+        },
+        "status_code": {
+          "type": ["null", "string"]
+        },
+        "expired_at": {
+          "type": ["null", "string"],
+          "format": "date-time"
+        }
+      }
+    },
+    "reason": {
+      "type": ["null", "string"]
+    },
+    "requested_by": {
+      "type": ["null", "string"]
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "version",
+    "request_id",
+    "equipment_id",
+    "changes",
+    "requested_at"
+  ]
+}

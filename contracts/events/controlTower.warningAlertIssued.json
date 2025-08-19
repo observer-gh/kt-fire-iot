@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "alert_id": {
+      "type": "string"
+    },
+    "equipment_id": {
+      "type": "string"
+    },
+    "facility_id": {
+      "type": ["null", "string"]
+    },
+    "equipment_location": {
+      "type": ["null", "string"]
+    },
+    "alert_type": {
+      "$ref": "#/definitions/AlertType"
+    },
+    "severity": {
+      "$ref": "#/definitions/Severity"
+    },
+    "status": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "version",
+    "alert_id",
+    "equipment_id",
+    "alert_type",
+    "severity",
+    "status",
+    "created_at"
+  ],
+  "definitions": {
+    "AlertType": {
+      "type": "string",
+      "enum": ["SMOKE", "GAS", "CO", "HEAT", "POWER", "COMM", "CUSTOM"]
+    },
+    "Severity": {
+      "type": "string",
+      "enum": ["INFO", "WARN", "EMERGENCY"]
+    }
+  }
+}
