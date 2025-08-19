@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Alert Notification Created Event",
-  "description": "Event emitted when a new alert notification is created",
+  "title": "Emergency Alert Triggered Event",
+  "description": "Event emitted when an emergency alert is triggered",
   "type": "object",
   "properties": {
     "event_id": {
@@ -11,7 +11,7 @@
     },
     "event_type": {
       "type": "string",
-      "const": "alert.notification-created",
+      "const": "alert.emergency-alert-triggered",
       "description": "Event type identifier"
     },
     "event_version": {
@@ -50,8 +50,8 @@
         },
         "severity": {
           "type": "string",
-          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
-          "description": "Alert severity level"
+          "const": "CRITICAL",
+          "description": "Alert severity level (emergency only)"
         },
         "message": {
           "type": "string",
@@ -110,14 +110,48 @@
           },
           "description": "Sensor readings that triggered the alert"
         },
+        "emergency_details": {
+          "type": "object",
+          "properties": {
+            "evacuation_required": {
+              "type": "boolean",
+              "description": "Whether evacuation is required"
+            },
+            "fire_department_notified": {
+              "type": "boolean",
+              "description": "Whether fire department has been notified"
+            },
+            "response_time_estimate": {
+              "type": "integer",
+              "description": "Estimated response time in minutes"
+            }
+          },
+          "description": "Emergency-specific details"
+        },
         "metadata": {
           "type": "object",
           "additionalProperties": true,
           "description": "Additional alert metadata"
         }
       },
-      "required": ["alert_id", "station_id", "rule_id", "rule_name", "severity", "message", "created_at", "location"]
+      "required": [
+        "alert_id",
+        "station_id",
+        "rule_id",
+        "rule_name",
+        "severity",
+        "message",
+        "created_at",
+        "location"
+      ]
     }
   },
-  "required": ["event_id", "event_type", "event_version", "timestamp", "dedupe_key", "data"]
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "timestamp",
+    "dedupe_key",
+    "data"
+  ]
 }
