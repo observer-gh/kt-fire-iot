@@ -8,8 +8,8 @@ RUN mvn -q -DskipTests dependency:go-offline
 # Copy source code
 COPY src ./src
 
-# Build without tests for faster build
-RUN mvn -q -DskipTests clean package
+# Build and run tests
+RUN mvn -q clean test package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
