@@ -81,8 +81,14 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501 --server.addres
 - `POST /ingest` - **Mock Server에서 실시간 데이터를 가져와서 처리** (기본 기능)
 - `POST /ingest/stream` - Mock Server에서 스트리밍 데이터를 가져와서 처리
 - `POST /ingest/batch` - Mock Server에서 배치 데이터를 가져와서 처리
-- `GET /mock-scheduler/status` - Mock Data Scheduler 상태 확인
-- `POST /trigger-mock-data-process` - Mock 데이터 처리 강제 실행
+
+#### Mock Data Scheduler Control APIs (New)
+
+- `GET /scheduler/mock/status` - Mock Data Scheduler 상태 확인
+- `POST /scheduler/mock/start` - Mock Data Scheduler 시작
+- `POST /scheduler/mock/stop` - Mock Data Scheduler 중지
+- `POST /scheduler/mock/restart` - Mock Data Scheduler 재시작
+- `POST /scheduler/mock/force-process` - Mock 데이터 처리 강제 실행 (스케줄러 상태와 무관)
 
 #### External API Integration (Legacy)
 
@@ -216,8 +222,8 @@ The DataLake service now includes Redis caching for improved performance:
 ### Kafka Topics
 
 - `fire-iot.sensorDataAnomalyDetected` - Anomaly detection events
-- `fire-iot.sensorDataSaved` - Data saved to storage events
-- `fire-iot.sensor-data` - Normal sensor readings
+- `datalake.sensorDataSaved` - Data saved to storage events
+- `datalake.sensorData` - Normal sensor readings
 
 ## 🗄️ Storage Types
 
@@ -279,7 +285,7 @@ curl -X POST http://localhost:8084/ingest \
 
 ### Batch Processing Test
 
-```bash
+````bash
 # Send 100 records to trigger batch upload
 for i in {1..100}; do
   curl -X POST http://localhost:8084/ingest \
@@ -292,6 +298,25 @@ for i in {1..100}; do
 done
 
 # Check batch upload status
+curl http://localhost:8084/storage/batches
+
+### Mock Data Scheduler Control
+
+```bash
+# Check scheduler status
+curl http://localhost:8084/scheduler/mock/status
+
+# Start the scheduler
+curl -X POST http://localhost:8084/scheduler/mock/start
+
+# Stop the scheduler
+curl -X POST http://localhost:8084/scheduler/mock/stop
+
+# Restart the scheduler
+curl -X POST http://localhost:8084/scheduler/mock/restart
+
+# Force process mock data once (even if scheduler is stopped)
+curl -X POST http://localhost:8084/scheduler/mock/force-process
 curl http://localhost:8084/stats
 
 # Manually trigger batch upload
@@ -299,7 +324,7 @@ curl -X POST http://localhost:8084/trigger-batch-upload
 
 # View uploaded batches (MockStorage only)
 curl http://localhost:8084/storage/batches
-```
+````
 
 ### Health Check
 

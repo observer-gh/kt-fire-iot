@@ -159,8 +159,8 @@ services:
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_TOPIC_ANOMALY=fire-iot.sensorDataAnomalyDetected
-      - KAFKA_TOPIC_DATA_SAVED=fire-iot.sensorDataSaved
-      - KAFKA_TOPIC_SENSOR_DATA=fire-iot.sensor-data
+      - KAFKA_TOPIC_DATA_SAVED=datalake.sensorDataSaved
+      - KAFKA_TOPIC_SENSOR_DATA=datalake.sensorData
       # Mock Server Configuration
       - MOCK_SERVER_URL=http://mock-server:8001
       - MOCK_SERVER_DATA_COUNT=10

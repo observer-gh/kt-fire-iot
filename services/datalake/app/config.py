@@ -18,9 +18,8 @@ class Settings(BaseSettings):
     
     # Kafka settings
     kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "kafka:29092")
-    kafka_topic_anomaly: str = os.getenv("KAFKA_TOPIC_ANOMALY", "fire-iot.anomaly-detected")
-    kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "fire-iot.sensorDataSaved")
-    kafka_topic_sensor_data: str = os.getenv("KAFKA_TOPIC_SENSOR_DATA", "fire-iot.sensor-data")
+    kafka_topic_anomaly: str = os.getenv("KAFKA_TOPIC_ANOMALY", "datalake.sensorDataAnomalyDetected")
+    kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "datalake.sensorDataSaved")
     
     # Mock Server settings
     mock_server_url: str = os.getenv("MOCK_SERVER_URL", "http://localhost:8081")
