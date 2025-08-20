@@ -222,7 +222,7 @@ resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
   properties: {
     serverFarmId: appServicePlan.id
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${dockerHubOrg}/controltower:${imageTag}'
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/kt-fire-iot-controltower:${imageTag}'
       appSettings: [
         {
           name: 'SPRING_PROFILES_ACTIVE'
@@ -256,7 +256,7 @@ resource facilityManagementApp 'Microsoft.Web/sites@2023-01-01' = {
   properties: {
     serverFarmId: appServicePlan.id
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${dockerHubOrg}/facilitymanagement:${imageTag}'
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/kt-fire-iot-facilitymanagement:${imageTag}'
       appSettings: [
         {
           name: 'SPRING_PROFILES_ACTIVE'
@@ -279,14 +279,14 @@ resource facilityManagementApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
-// DataLake Web App
-resource dataLakeApp 'Microsoft.Web/sites@2023-01-01' = {
-  name: '${appNamePrefix}-datalake'
+// DataLake API Web App
+resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
+  name: '${appNamePrefix}-datalake-api'
   location: location
   properties: {
     serverFarmId: appServicePlan.id
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${dockerHubOrg}/datalake:${imageTag}'
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/kt-fire-iot-datalake-api:${imageTag}'
       appSettings: [
         {
           name: 'PROFILE'
@@ -317,6 +317,44 @@ resource dataLakeApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
+// DataLake Dashboard Web App
+resource dataLakeDashboardApp 'Microsoft.Web/sites@2023-01-01' = {
+  name: '${appNamePrefix}-datalake-dashboard'
+  location: location
+  properties: {
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/kt-fire-iot-datalake-dashboard:${imageTag}'
+      appSettings: [
+        {
+          name: 'PROFILE'
+          value: 'cloud'
+        }
+        {
+          name: 'POSTGRES_URL'
+          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
+        }
+        {
+          name: 'REDIS_URL'
+          value: 'redis://${redisCache.properties.hostName}:6380'
+        }
+        {
+          name: 'EVENTHUB_CONN'
+          value: eventHubAuthRule.listKeys().primaryConnectionString
+        }
+        {
+          name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+          value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
+        }
+        {
+          name: 'WEBSITES_PORT'
+          value: '8501'
+        }
+      ]
+    }
+  }
+}
+
 // Alert Web App
 resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
   name: '${appNamePrefix}-alert'
@@ -324,7 +362,7 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
   properties: {
     serverFarmId: appServicePlan.id
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${dockerHubOrg}/alert:${imageTag}'
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/kt-fire-iot-alert:${imageTag}'
       appSettings: [
         {
           name: 'PROFILE'
@@ -358,7 +396,8 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
 // Outputs
 output controlTowerUrl string = 'https://${controlTowerApp.properties.defaultHostName}'
 output facilityManagementUrl string = 'https://${facilityManagementApp.properties.defaultHostName}'
-output dataLakeUrl string = 'https://${dataLakeApp.properties.defaultHostName}'
+output dataLakeApiUrl string = 'https://${dataLakeApiApp.properties.defaultHostName}'
+output dataLakeDashboardUrl string = 'https://${dataLakeDashboardApp.properties.defaultHostName}'
 output dockerHubOrg string = dockerHubOrg
 output eventHubNamespace string = eventHubNamespace.name
 output postgresServerFqdn string = postgresServer.properties.fullyQualifiedDomainName

@@ -51,18 +51,32 @@ az group create --name $RESOURCE_GROUP --location $LOCATION --output none
 # Check Docker images exist in Docker Hub
 echo -e "${YELLOW}🐳 Checking Docker images in Docker Hub...${NC}"
 
-services=("controltower" "facilitymanagement" "datalake" "alert")
+# Define services with their image names
+declare -A services=(
+    ["controltower"]="kt-fire-iot-controltower"
+    ["facilitymanagement"]="kt-fire-iot-facilitymanagement"
+    ["datalake-api"]="kt-fire-iot-datalake-api"
+    ["datalake-dashboard"]="kt-fire-iot-datalake-dashboard"
+    ["alert"]="kt-fire-iot-alert"
+)
 
-for service in "${services[@]}"; do
-    echo -e "${YELLOW}Checking $service...${NC}"
-    if ! docker manifest inspect $DOCKER_HUB_ORG/$service:$IMAGE_TAG > /dev/null 2>&1; then
-        echo -e "${RED}❌ Image $DOCKER_HUB_ORG/$service:$IMAGE_TAG not found in Docker Hub${NC}"
+for service in "${!services[@]}"; do
+    image_name="${services[$service]}"
+    echo -e "${YELLOW}Checking $service ($image_name)...${NC}"
+    if ! docker manifest inspect $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG > /dev/null 2>&1; then
+        echo -e "${RED}❌ Image $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG not found in Docker Hub${NC}"
         echo -e "${YELLOW}Please build and push the image first:${NC}"
-        echo -e "  docker build -t $DOCKER_HUB_ORG/$service:$IMAGE_TAG ./services/$service/"
-        echo -e "  docker push $DOCKER_HUB_ORG/$service:$IMAGE_TAG"
+        if [[ "$service" == "datalake-api" ]]; then
+            echo -e "  docker build -f Dockerfile.api -t $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG ./services/datalake/"
+        elif [[ "$service" == "datalake-dashboard" ]]; then
+            echo -e "  docker build -f Dockerfile.dashboard -t $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG ./services/datalake/"
+        else
+            echo -e "  docker build -t $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG ./services/$service/"
+        fi
+        echo -e "  docker push $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG"
         exit 1
     fi
-    echo -e "${GREEN}✅ Found $DOCKER_HUB_ORG/$service:$IMAGE_TAG${NC}"
+    echo -e "${GREEN}✅ Found $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG${NC}"
 done
 
 # Deploy infrastructure
