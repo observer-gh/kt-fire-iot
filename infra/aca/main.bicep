@@ -145,9 +145,9 @@ resource eventHubAuthRule 'Microsoft.EventHub/namespaces/authorizationRules@2023
   }
 }
 
-// PostgreSQL Server
-resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-preview' = {
-  name: 'fire-iot-postgres-${environment}'
+// PostgreSQL Server for DataLake API
+resource postgresDatalakeServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-preview' = {
+  name: 'fire-iot-postgres-datalake-${environment}'
   location: location
   sku: {
     name: 'Standard_B1ms'
@@ -156,7 +156,29 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-pr
   properties: {
     administratorLogin: postgresAdminUsername
     administratorLoginPassword: postgresAdminPassword
-    version: '14'
+    version: '16'
+    storage: {
+      storageSizeGB: 32
+    }
+    network: {
+      delegatedSubnetResourceId: vnet.properties.subnets[1].id
+      privateDnsZoneArmResourceId: privateDnsZone.id
+    }
+  }
+}
+
+// PostgreSQL Server for FacilityManagement
+resource postgresFacilityManagementServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-preview' = {
+  name: 'fire-iot-postgres-facilitymanagement-${environment}'
+  location: location
+  sku: {
+    name: 'Standard_B1ms'
+    tier: 'Burstable'
+  }
+  properties: {
+    administratorLogin: postgresAdminUsername
+    administratorLoginPassword: postgresAdminPassword
+    version: '16'
     storage: {
       storageSizeGB: 32
     }
@@ -229,10 +251,6 @@ resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'cloud'
         }
         {
-          name: 'POSTGRES_URL'
-          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
-        }
-        {
           name: 'EVENTHUB_CONNECTION_STRING'
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
@@ -264,7 +282,7 @@ resource facilityManagementApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'POSTGRES_URL'
-          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
+          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresFacilityManagementServer.properties.fullyQualifiedDomainName}:5432/facilitymanagement'
         }
         {
           name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
@@ -294,7 +312,7 @@ resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'POSTGRES_URL'
-          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
+          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresDatalakeServer.properties.fullyQualifiedDomainName}:5432/datalake'
         }
         {
           name: 'REDIS_URL'
@@ -332,7 +350,7 @@ resource dataLakeDashboardApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'POSTGRES_URL'
-          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
+          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresDatalakeServer.properties.fullyQualifiedDomainName}:5432/datalake'
         }
         {
           name: 'REDIS_URL'
@@ -369,10 +387,6 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'cloud'
         }
         {
-          name: 'POSTGRES_URL'
-          value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
-        }
-        {
           name: 'REDIS_URL'
           value: 'redis://${redisCache.properties.hostName}:6380'
         }
@@ -400,7 +414,8 @@ output dataLakeApiUrl string = 'https://${dataLakeApiApp.properties.defaultHostN
 output dataLakeDashboardUrl string = 'https://${dataLakeDashboardApp.properties.defaultHostName}'
 output dockerHubOrg string = dockerHubOrg
 output eventHubNamespace string = eventHubNamespace.name
-output postgresServerFqdn string = postgresServer.properties.fullyQualifiedDomainName
+output postgresDatalakeServerFqdn string = postgresDatalakeServer.properties.fullyQualifiedDomainName
+output postgresFacilityManagementServerFqdn string = postgresFacilityManagementServer.properties.fullyQualifiedDomainName
 output redisHostName string = redisCache.properties.hostName
 output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
 output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
