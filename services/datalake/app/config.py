@@ -22,6 +22,16 @@ class Settings(BaseSettings):
     kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "fire-iot.sensorDataSaved")
     kafka_topic_sensor_data: str = os.getenv("KAFKA_TOPIC_SENSOR_DATA", "fire-iot.sensor-data")
     
+    # Mock Server settings
+    mock_server_url: str = os.getenv("MOCK_SERVER_URL", "http://localhost:8081")
+    mock_server_data_count: int = int(os.getenv("MOCK_SERVER_DATA_COUNT", "10"))
+    mock_server_data_fetch_interval_seconds: int = int(os.getenv("MOCK_SERVER_DATA_FETCH_INTERVAL", "5"))
+    mock_server_stream_data_count: int = int(os.getenv("MOCK_SERVER_STREAM_COUNT", "5"))
+    mock_server_batch_data_count: int = int(os.getenv("MOCK_SERVER_BATCH_COUNT", "100"))
+    
+    # Dashboard settings
+    dashboard_refresh_interval_seconds: int = int(os.getenv("DASHBOARD_REFRESH_INTERVAL", "1"))
+    
     # Storage settings
     storage_type: Literal["production", "mock"] = os.getenv("STORAGE_TYPE", "mock")
     batch_size: int = int(os.getenv("BATCH_SIZE", "100"))
@@ -34,13 +44,6 @@ class Settings(BaseSettings):
     
     # Logging
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
-    
-    @property
-    def database_url(self) -> str:
-        """Get database URL"""
-        if self.postgres_url:
-            return self.postgres_url
-        return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
     
     class Config:
         env_file = ".env"

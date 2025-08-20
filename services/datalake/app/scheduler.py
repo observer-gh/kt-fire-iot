@@ -2,11 +2,9 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-from sqlalchemy.orm import Session
 
 from .storage_service import StorageService
 from .publisher import KafkaPublisher
-from .database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +46,11 @@ class BatchScheduler:
         while self.is_running:
             try:
                 # Check if batch upload is needed
-                db = SessionLocal()
-                try:
-                    if self.storage_service.should_upload_batch(db):
-                        logger.info("Batch upload condition met, processing...")
-                        await self._process_batch_upload(db)
-                    else:
-                        logger.debug("Batch upload not needed yet")
-                finally:
-                    db.close()
+                if self.storage_service.should_upload_batch():
+                    logger.info("Batch upload condition met, processing...")
+                    await self._process_batch_upload()
+                else:
+                    logger.debug("Batch upload not needed yet")
                 
                 # Wait for next check
                 await asyncio.sleep(60)  # Check every minute
@@ -67,11 +61,11 @@ class BatchScheduler:
                 logger.error(f"Error in batch scheduler: {e}")
                 await asyncio.sleep(60)  # Wait before retrying
     
-    async def _process_batch_upload(self, db: Session):
+    async def _process_batch_upload(self):
         """Process a batch upload"""
         try:
             # Upload batch to storage
-            filepath = self.storage_service.upload_batch_to_storage(db)
+            filepath = self.storage_service.upload_batch_to_storage()
             if filepath:
                 logger.info(f"Batch uploaded to storage: {filepath}")
                 
@@ -88,7 +82,7 @@ class BatchScheduler:
                 self.kafka_publisher.publish_data_saved(data_saved_event, filepath)
                 
                 # Clean up uploaded data
-                cleanup_success = self.storage_service.cleanup_uploaded_data(db, filepath)
+                cleanup_success = self.storage_service.cleanup_uploaded_data(filepath)
                 if cleanup_success:
                     logger.info("Uploaded data cleaned up successfully")
                 else:
@@ -102,8 +96,4 @@ class BatchScheduler:
     async def force_batch_upload(self):
         """Force a batch upload regardless of conditions"""
         logger.info("Forcing batch upload...")
-        db = SessionLocal()
-        try:
-            await self._process_batch_upload(db)
-        finally:
-            db.close()
+        await self._process_batch_upload()

@@ -36,6 +36,11 @@ docker run -d --name datalake-api --network fire-iot-network -p 8084:8080 \
   -e KAFKA_BROKERS=kafka:29092 \
   -e STORAGE_TYPE=mock \
   -e BATCH_SIZE=100 \
+  -e MOCK_SERVER_URL=http://mock-server:8081 \
+  -e MOCK_SERVER_DATA_COUNT=10 \
+  -e MOCK_SERVER_DATA_FETCH_INTERVAL=5 \
+  -e MOCK_SERVER_STREAM_COUNT=5 \
+  -e MOCK_SERVER_BATCH_COUNT=100 \
   fire-iot-datalake-api
 
 # Run dashboard service
@@ -62,15 +67,66 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501 --server.addres
 
 ## 📊 APIs
 
-- `GET /healthz` - Health check with Redis status
+### Core APIs
+
+- `GET /healthz` - Health check with Redis and Mock Server status
 - `GET /redis/status` - Redis connection status and info
-- `POST /ingest` - Ingest sensor data from external APIs
-- `POST /trigger-batch-upload` - Manually trigger batch upload
 - `GET /stats` - Service statistics and storage info (with Redis caching)
+- `GET /docs` - API documentation (Swagger UI)
+
+### Data Ingestion APIs
+
+#### Mock Server Integration (New)
+
+- `POST /ingest` - **Mock Server에서 실시간 데이터를 가져와서 처리** (기본 기능)
+- `POST /ingest/stream` - Mock Server에서 스트리밍 데이터를 가져와서 처리
+- `POST /ingest/batch` - Mock Server에서 배치 데이터를 가져와서 처리
+- `GET /mock-scheduler/status` - Mock Data Scheduler 상태 확인
+- `POST /trigger-mock-data-process` - Mock 데이터 처리 강제 실행
+
+#### External API Integration (Legacy)
+
+- `POST /ingest/external` - 외부 API에서 센서 데이터 수신 (기존 기능 유지)
+
+### Storage & Batch APIs
+
+- `POST /trigger-batch-upload` - Manually trigger batch upload
 - `GET /storage/batches` - Get uploaded batches (MockStorage only)
 - `DELETE /storage/batches` - Clear batch tracking (MockStorage only)
 - `DELETE /cache` - Clear Redis cache
-- `GET /docs` - API documentation (Swagger UI)
+
+## 🔄 Mock Server Integration
+
+DataLake는 이제 Mock Server와 자동으로 연동되어 실시간 데이터를 주기적으로 가져와서 처리합니다.
+
+### Features
+
+- **자동 폴링**: 설정된 간격으로 Mock Server에서 데이터를 가져옴
+- **실시간 처리**: 받아온 데이터를 즉시 처리하고 이상치 탐지
+- **이벤트 발행**: 이상치 발견 시 ControlTower로 이벤트 발행
+- **다양한 데이터 타입**: 실시간, 스트리밍, 배치 데이터 지원
+
+### Configuration
+
+```bash
+# Mock Server 설정
+MOCK_SERVER_URL=http://localhost:8081          # Mock Server URL
+MOCK_SERVER_DATA_COUNT=10                     # 기본 데이터 개수
+MOCK_SERVER_DATA_FETCH_INTERVAL=5             # 데이터 가져오기 간격 (초) - 기본값: 5초
+MOCK_SERVER_STREAM_COUNT=5                    # 스트리밍 데이터 개수
+MOCK_SERVER_BATCH_COUNT=100                   # 배치 데이터 개수
+
+# Dashboard 설정
+DASHBOARD_REFRESH_INTERVAL=1                  # 대시보드 자동 새로고침 간격 (초) - 기본값: 1초
+```
+
+### Data Flow
+
+1. **Mock Server** → 실시간 센서 데이터 생성 (90% 정상, 10% 이상)
+2. **DataLake** → 주기적으로 Mock Server에서 데이터 가져오기
+3. **DataLake** → 데이터 처리 및 이상치 탐지
+4. **DataLake** → 이상치 발견 시 ControlTower로 이벤트 발행
+5. **DataLake** → 모든 데이터를 데이터베이스에 저장
 
 ## 🎯 Real-time Dashboard
 

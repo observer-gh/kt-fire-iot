@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from app.dashboard.data_manager import FireSensorDataManager
 from app.dashboard.alert_manager import AlertManager
 from app.dashboard.charts import SensorCharts
+from app.config import settings
 
 # Page configuration
 st.set_page_config(
@@ -48,7 +49,8 @@ def main():
         time_range = st.selectbox("Time Range", ["Real-time", "1 Hour", "24 Hours", "7 Days"])
         
         # Auto refresh
-        auto_refresh = st.checkbox("Auto Refresh (30s)", value=True)
+        refresh_interval = settings.dashboard_refresh_interval_seconds
+        auto_refresh = st.checkbox(f"Auto Refresh ({refresh_interval}s)", value=True)
         
         # Sensor selection
         st.subheader("📊 Sensor Selection")
@@ -265,7 +267,7 @@ def main():
     
     # Auto-refresh logic
     if auto_refresh:
-        time.sleep(30)
+        time.sleep(refresh_interval)
         st.rerun()
 
 if __name__ == "__main__":

@@ -1,27 +1,117 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+import psycopg2
+import psycopg2.extras
+from psycopg2.pool import SimpleConnectionPool
+from contextlib import contextmanager
 from app.config import settings
+import logging
 
-# Create engine using settings
-engine = create_engine(
-    settings.database_url,
-    poolclass=StaticPool,
-    pool_pre_ping=True,
-    echo=False
-)
+logger = logging.getLogger(__name__)
 
-# Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Connection pool
+_pool = None
 
-# Create base class for models
-Base = declarative_base()
+def get_pool():
+    """Get or create connection pool"""
+    global _pool
+    if _pool is None:
+        try:
+            _pool = SimpleConnectionPool(
+                minconn=1,
+                maxconn=10,
+                host=settings.postgres_host,
+                port=settings.postgres_port,
+                database=settings.postgres_db,
+                user=settings.postgres_user,
+                password=settings.postgres_password
+            )
+            logger.info("Database connection pool created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create database connection pool: {e}")
+            raise
+    return _pool
 
+@contextmanager
 def get_db():
-    """Dependency to get database session"""
-    db = SessionLocal()
+    """Context manager to get database connection"""
+    pool = get_pool()
+    conn = None
     try:
-        yield db
+        conn = pool.getconn()
+        yield conn
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Database error: {e}")
+        raise
     finally:
-        db.close()
+        if conn:
+            pool.putconn(conn)
+
+def close_pool():
+    """Close the connection pool"""
+    global _pool
+    if _pool:
+        _pool.closeall()
+        _pool = None
+        logger.info("Database connection pool closed")
+
+def execute_query(query, params=None, fetch=True):
+    """Execute a query and return results"""
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query, params)
+            if fetch:
+                return cur.fetchall()
+            conn.commit()
+            return cur.rowcount
+
+def execute_many(query, params_list):
+    """Execute a query with multiple parameter sets"""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(query, params_list)
+            conn.commit()
+            return cur.rowcount
+
+def create_tables():
+    """Create database tables if they don't exist"""
+    create_realtime_table = """
+    CREATE TABLE IF NOT EXISTS realtime (
+        equipment_data_id VARCHAR(10) PRIMARY KEY,
+        equipment_id VARCHAR(10),
+        facility_id VARCHAR(10),
+        equipment_location VARCHAR(40),
+        measured_at TIMESTAMP,
+        ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        temperature DECIMAL(6,2),
+        humidity DECIMAL(5,2),
+        smoke_density DECIMAL(6,3),
+        co_level DECIMAL(6,3),
+        gas_level DECIMAL(6,3),
+        version INTEGER DEFAULT 1
+    );
+    """
+    
+    create_alert_table = """
+    CREATE TABLE IF NOT EXISTS alert (
+        alert_id VARCHAR(10) PRIMARY KEY,
+        equipment_id VARCHAR(10),
+        facility_id VARCHAR(10),
+        equipment_location VARCHAR(40),
+        alert_type VARCHAR(20),
+        severity VARCHAR(20),
+        status VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP,
+        version INTEGER DEFAULT 1
+    );
+    """
+    
+    try:
+        execute_query(create_realtime_table, fetch=False)
+        execute_query(create_alert_table, fetch=False)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error(f"Failed to create tables: {e}")
+        raise
