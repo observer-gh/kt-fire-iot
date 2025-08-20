@@ -24,7 +24,7 @@ class TestKafkaEvents:
         
         # Kafka 컨슈머 생성
         consumer = KafkaConsumer(
-            'fire-iot.anomaly-detected',
+            'fire-iot.sensorDataAnomalyDetected',
             bootstrap_servers=kafka_config['bootstrap_servers'],
             auto_offset_reset='earliest',
             consumer_timeout_ms=30000,  # 30초 타임아웃
@@ -90,7 +90,7 @@ class TestKafkaEvents:
         
         # Kafka 컨슈머 생성
         consumer = KafkaConsumer(
-            kafka_config.get('topic_anomaly', 'sensorDataAnomalyDetected'),
+            kafka_config.get('topic_anomaly', 'fire-iot.sensorDataAnomalyDetected'),
             bootstrap_servers=kafka_config['bootstrap_servers'],
             auto_offset_reset='earliest',
             consumer_timeout_ms=15000,
@@ -261,7 +261,7 @@ class TestKafkaEvents:
         
         # Kafka 컨슈머 생성
         consumer = KafkaConsumer(
-            'fire-iot.anomaly-detected',
+            'fire-iot.sensorDataAnomalyDetected',
             bootstrap_servers=kafka_config['bootstrap_servers'],
             auto_offset_reset='earliest',
             consumer_timeout_ms=60000,  # 60초 타임아웃
@@ -328,7 +328,7 @@ class TestKafkaEvents:
             
             # 필수 토픽 확인
             required_topics = [
-                'fire-iot.anomaly-detected',
+                'fire-iot.sensorDataAnomalyDetected',
                 'fire-iot.sensorDataSaved',
                 'fire-iot.sensor-data'
             ]
@@ -350,7 +350,7 @@ class TestKafkaEvents:
         
         # Kafka 컨슈머 생성
         consumer = KafkaConsumer(
-            'fire-iot.anomaly-detected',
+            'fire-iot.sensorDataAnomalyDetected',
             bootstrap_servers=kafka_config['bootstrap_servers'],
             auto_offset_reset='earliest',
             consumer_timeout_ms=30000,
