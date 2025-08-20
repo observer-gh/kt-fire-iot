@@ -4,7 +4,6 @@ import uvicorn
 import logging
 from datetime import datetime
 import asyncio
-from sqlalchemy.orm import Session
 import uuid
 
 from .models import RawSensorData, ProcessedSensorData
@@ -13,8 +12,7 @@ from .publisher import KafkaPublisher
 from .storage_service import StorageService
 from .mock_storage import MockStorage
 from .scheduler import BatchScheduler
-from .database import get_db, engine
-from .db_models import Base
+from .database import create_tables
 from .config import settings
 from .redis_client import redis_client
 
@@ -23,7 +21,7 @@ logging.basicConfig(level=getattr(logging, settings.log_level))
 logger = logging.getLogger(__name__)
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
+create_tables()
 
 app = FastAPI(
     title="DataLake API",
@@ -112,8 +110,7 @@ async def root():
 @app.post("/ingest")
 async def ingest_sensor_data(
     raw_data: RawSensorData, 
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    background_tasks: BackgroundTasks
 ):
     """Ingest sensor data from external API"""
     try:
@@ -123,7 +120,7 @@ async def ingest_sensor_data(
         processed_data = DataProcessor.process_sensor_data(raw_data)
 
         # Save to database
-        save_success = storage_service.save_sensor_data(db, processed_data)
+        save_success = storage_service.save_sensor_data(processed_data)
         if not save_success:
             raise HTTPException(status_code=500, detail="Failed to save data to database")
 
@@ -183,7 +180,7 @@ async def trigger_batch_upload():
 
 
 @app.get("/stats")
-async def get_stats(db: Session = Depends(get_db)):
+async def get_stats():
     """Get service statistics with Redis caching"""
     try:
         # Try to get stats from Redis cache first
@@ -194,16 +191,15 @@ async def get_stats(db: Session = Depends(get_db)):
             logger.info("Returning cached stats from Redis")
             return cached_stats
         
-        from sqlalchemy import func
-        from .db_models import Realtime, Alert
+        from .database import execute_query
         
         # Count records in realtime table
-        realtime_count = db.query(func.count(Realtime.equipment_data_id)).scalar()
+        realtime_count_result = execute_query("SELECT COUNT(*) as count FROM realtime")
+        realtime_count = realtime_count_result[0]['count'] if realtime_count_result else 0
         
         # Count active alerts
-        alert_count = db.query(func.count(Alert.alert_id)).filter(
-            Alert.status == "ACTIVE"
-        ).scalar()
+        alert_count_result = execute_query("SELECT COUNT(*) as count FROM alert WHERE status = %s", ("ACTIVE",))
+        alert_count = alert_count_result[0]['count'] if alert_count_result else 0
         
         # Get storage stats
         storage_stats = storage_service.get_storage_stats() if hasattr(storage_service, 'get_storage_stats') else {}

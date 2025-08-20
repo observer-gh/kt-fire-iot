@@ -35,13 +35,6 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     
-    @property
-    def database_url(self) -> str:
-        """Get database URL"""
-        if self.postgres_url:
-            return self.postgres_url
-        return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-    
     class Config:
         env_file = ".env"
         case_sensitive = False

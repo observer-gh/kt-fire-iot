@@ -3,11 +3,9 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 import uuid
 
-from .database import get_db
+from .database import execute_query, execute_many
 from .db_models import Realtime, Alert
 from .models import ProcessedSensorData, SensorDataSavedEvent
 from .config import settings
@@ -29,7 +27,7 @@ class StorageService(StorageInterface):
         logger.info(f"StorageService initialized with path: {self.storage_path}")
         logger.info(f"Batch size: {self.batch_size}, Interval: {self.batch_interval} minutes")
     
-    def save_sensor_data(self, db: Session, processed_data: ProcessedSensorData) -> bool:
+    def save_sensor_data(self, processed_data: ProcessedSensorData) -> bool:
         """Save processed sensor data to database"""
         try:
             # Create realtime record
@@ -39,7 +37,6 @@ class StorageService(StorageInterface):
                 facility_id=processed_data.facility_id,
                 equipment_location=processed_data.equipment_location,
                 measured_at=processed_data.measured_at,
-                ingested_at=processed_data.ingested_at,
                 temperature=processed_data.temperature,
                 humidity=processed_data.humidity,
                 smoke_density=processed_data.smoke_density,
@@ -48,7 +45,17 @@ class StorageService(StorageInterface):
                 version=1
             )
             
-            db.add(realtime_record)
+            # Insert realtime data
+            insert_realtime_query = """
+            INSERT INTO realtime (
+                equipment_data_id, equipment_id, facility_id, equipment_location,
+                measured_at, temperature, humidity, smoke_density, co_level, gas_level, version
+            ) VALUES (
+                %(equipment_data_id)s, %(equipment_id)s, %(facility_id)s, %(equipment_location)s,
+                %(measured_at)s, %(temperature)s, %(humidity)s, %(smoke_density)s, %(co_level)s, %(gas_level)s, %(version)s
+            )
+            """
+            execute_query(insert_realtime_query, realtime_record.to_dict(), fetch=False)
             
             # Create alert record if anomaly detected
             if processed_data.is_anomaly:
@@ -63,14 +70,22 @@ class StorageService(StorageInterface):
                     created_at=datetime.utcnow(),
                     version=1
                 )
-                db.add(alert_record)
+                
+                insert_alert_query = """
+                INSERT INTO alert (
+                    alert_id, equipment_id, facility_id, equipment_location,
+                    alert_type, severity, status, created_at, updated_at, version
+                ) VALUES (
+                    %(alert_id)s, %(equipment_id)s, %(facility_id)s, %(equipment_location)s,
+                    %(alert_type)s, %(severity)s, %(status)s, %(created_at)s, %(updated_at)s, %(version)s
+                )
+                """
+                execute_query(insert_alert_query, alert_record.to_dict(), fetch=False)
             
-            db.commit()
             logger.info(f"Saved sensor data for equipment {processed_data.equipment_id}")
             return True
             
         except Exception as e:
-            db.rollback()
             logger.error(f"Failed to save sensor data: {e}")
             return False
     
@@ -95,11 +110,14 @@ class StorageService(StorageInterface):
         else:
             return "WARN"
     
-    def should_upload_batch(self, db: Session) -> bool:
+    def should_upload_batch(self) -> bool:
         """Check if it's time to upload a batch of data"""
         try:
             # Check if we have enough data
-            count = db.query(func.count(Realtime.equipment_data_id)).scalar()
+            count_query = "SELECT COUNT(*) as count FROM realtime"
+            result = execute_query(count_query)
+            count = result[0]['count'] if result else 0
+            
             if count < self.batch_size:
                 return False
             
@@ -111,11 +129,12 @@ class StorageService(StorageInterface):
             logger.error(f"Error checking batch upload condition: {e}")
             return False
     
-    def upload_batch_to_storage(self, db: Session) -> Optional[str]:
+    def upload_batch_to_storage(self) -> Optional[str]:
         """Upload a batch of data to storage and return file path"""
         try:
             # Get batch of data
-            batch_data = db.query(Realtime).limit(self.batch_size).all()
+            batch_query = "SELECT * FROM realtime LIMIT %s"
+            batch_data = execute_query(batch_query, (self.batch_size,))
             
             if not batch_data:
                 logger.info("No data to upload")
@@ -125,18 +144,18 @@ class StorageService(StorageInterface):
             data_list = []
             for record in batch_data:
                 data_dict = {
-                    "equipment_data_id": record.equipment_data_id,
-                    "equipment_id": record.equipment_id,
-                    "facility_id": record.facility_id,
-                    "equipment_location": record.equipment_location,
-                    "measured_at": record.measured_at.isoformat() if record.measured_at else None,
-                    "ingested_at": record.ingested_at.isoformat() if record.ingested_at else None,
-                    "temperature": float(record.temperature) if record.temperature else None,
-                    "humidity": float(record.humidity) if record.humidity else None,
-                    "smoke_density": float(record.smoke_density) if record.smoke_density else None,
-                    "co_level": float(record.co_level) if record.co_level else None,
-                    "gas_level": float(record.gas_level) if record.gas_level else None,
-                    "version": record.version
+                    "equipment_data_id": record['equipment_data_id'],
+                    "equipment_id": record['equipment_id'],
+                    "facility_id": record['facility_id'],
+                    "equipment_location": record['equipment_location'],
+                    "measured_at": record['measured_at'].isoformat() if record['measured_at'] else None,
+                    "ingested_at": record['ingested_at'].isoformat() if record['ingested_at'] else None,
+                    "temperature": float(record['temperature']) if record['temperature'] else None,
+                    "humidity": float(record['humidity']) if record['humidity'] else None,
+                    "smoke_density": float(record['smoke_density']) if record['smoke_density'] else None,
+                    "co_level": float(record['co_level']) if record['co_level'] else None,
+                    "gas_level": float(record['gas_level']) if record['gas_level'] else None,
+                    "version": record['version']
                 }
                 data_list.append(data_dict)
             
@@ -162,7 +181,7 @@ class StorageService(StorageInterface):
             logger.error(f"Failed to upload batch to storage: {e}")
             return None
     
-    def cleanup_uploaded_data(self, db: Session, filepath: str) -> bool:
+    def cleanup_uploaded_data(self, filepath: str) -> bool:
         """Clean up data that has been uploaded to storage"""
         try:
             # Read the uploaded file to get record IDs
@@ -173,15 +192,14 @@ class StorageService(StorageInterface):
             equipment_data_ids = [record["equipment_data_id"] for record in batch_info["data"]]
             
             # Delete from database
-            deleted_count = db.query(Realtime).filter(
-                Realtime.equipment_data_id.in_(equipment_data_ids)
-            ).delete(synchronize_session=False)
+            placeholders = ','.join(['%s'] * len(equipment_data_ids))
+            delete_query = f"DELETE FROM realtime WHERE equipment_data_id IN ({placeholders})"
             
-            db.commit()
+            deleted_count = execute_query(delete_query, equipment_data_ids, fetch=False)
+            
             logger.info(f"Cleaned up {deleted_count} records after upload")
             return True
             
         except Exception as e:
-            db.rollback()
             logger.error(f"Failed to cleanup uploaded data: {e}")
             return False
