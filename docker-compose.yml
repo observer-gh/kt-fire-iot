@@ -164,7 +164,7 @@ services:
       - POSTGRES_URL=postgresql://postgres:postgres@postgres-datalake:5432/datalake
       - REDIS_URL=redis://redis:6379
       - KAFKA_BROKERS=kafka:29092
-      - KAFKA_TOPIC_ANOMALY=fire-iot.data-anomaly-detected
+      - KAFKA_TOPIC_ANOMALY=fire-iot.sensorDataAnomalyDetected
       - KAFKA_TOPIC_DATA_SAVED=fire-iot.data-saved
       - KAFKA_TOPIC_SENSOR_DATA=fire-iot.sensor-data
       # Storage Configuration (MockStorage for local testing)
