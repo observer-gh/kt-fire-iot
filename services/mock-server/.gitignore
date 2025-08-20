@@ -1,5 +1,5 @@
 # ---- Maven build output ----
-./target/
+target/
 
 # ---- Gradle (만약 gradle-wrapper 포함 시) ----
 .gradle/
