@@ -52,28 +52,20 @@ az group create --name $RESOURCE_GROUP --location $LOCATION --output none
 echo -e "${YELLOW}🐳 Checking Docker images in Docker Hub...${NC}"
 
 # Define services with their image names
-declare -A services=(
-    ["controltower"]="kt-fire-iot-controltower"
-    ["facilitymanagement"]="kt-fire-iot-facilitymanagement"
-    ["datalake-api"]="kt-fire-iot-datalake-api"
-    ["datalake-dashboard"]="kt-fire-iot-datalake-dashboard"
-    ["alert"]="kt-fire-iot-alert"
+services=(
+    "controltower:kt-fire-iot-controltower"
+    "facilitymanagement:kt-fire-iot-facilitymanagement"
+    "datalake-api:kt-fire-iot-datalake-api"
+    "datalake-dashboard:kt-fire-iot-datalake-dashboard"
+    "alert:kt-fire-iot-alert"
 )
 
-for service in "${!services[@]}"; do
-    image_name="${services[$service]}"
+for service_info in "${services[@]}"; do
+    service=$(echo "$service_info" | cut -d: -f1)
+    image_name=$(echo "$service_info" | cut -d: -f2)
     echo -e "${YELLOW}Checking $service ($image_name)...${NC}"
     if ! docker manifest inspect $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG > /dev/null 2>&1; then
         echo -e "${RED}❌ Image $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG not found in Docker Hub${NC}"
-        echo -e "${YELLOW}Please build and push the image first:${NC}"
-        if [[ "$service" == "datalake-api" ]]; then
-            echo -e "  docker build -f Dockerfile.api -t $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG ./services/datalake/"
-        elif [[ "$service" == "datalake-dashboard" ]]; then
-            echo -e "  docker build -f Dockerfile.dashboard -t $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG ./services/datalake/"
-        else
-            echo -e "  docker build -t $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG ./services/$service/"
-        fi
-        echo -e "  docker push $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG"
         exit 1
     fi
     echo -e "${GREEN}✅ Found $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG${NC}"
