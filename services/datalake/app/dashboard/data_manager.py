@@ -57,23 +57,29 @@ class FireSensorDataManager:
             result = self.db.execute(text(query), params)
             rows = result.fetchall()
             
-            return [
-                {
-                    'equipment_data_id': row[0],
-                    'equipment_id': row[1],
-                    'facility_id': row[2],
-                    'equipment_location': row[3],
-                    'measured_at': row[4],
-                    'ingested_at': row[5],
-                    'temperature': float(row[6]) if row[6] is not None else None,
-                    'humidity': float(row[7]) if row[7] is not None else None,
-                    'smoke_density': float(row[8]) if row[8] is not None else None,
-                    'co_level': float(row[9]) if row[9] is not None else None,
-                    'gas_level': float(row[10]) if row[10] is not None else None,
-                    'version': row[11]
-                }
-                for row in rows
-            ]
+            data_list = []
+            for row in rows:
+                try:
+                    data = {
+                        'equipment_data_id': str(row[0]) if row[0] is not None else 'UNKNOWN',
+                        'equipment_id': str(row[1]) if row[1] is not None else 'UNKNOWN',
+                        'facility_id': str(row[2]) if row[2] is not None else 'UNKNOWN',
+                        'equipment_location': str(row[3]) if row[3] is not None else 'UNKNOWN',
+                        'measured_at': row[4],
+                        'ingested_at': row[5],
+                        'temperature': float(row[6]) if row[6] is not None else None,
+                        'humidity': float(row[7]) if row[7] is not None else None,
+                        'smoke_density': float(row[8]) if row[8] is not None else None,
+                        'co_level': float(row[9]) if row[9] is not None else None,
+                        'gas_level': float(row[10]) if row[10] is not None else None,
+                        'version': int(row[11]) if row[11] is not None else 1
+                    }
+                    data_list.append(data)
+                except (ValueError, TypeError, IndexError) as e:
+                    logger.warning(f"Skipping invalid row data: {e}, row: {row}")
+                    continue
+            
+            return data_list
         except Exception as e:
             logger.error(f"Error getting realtime data from database: {e}")
             # Fallback to API service if database is not available
@@ -99,21 +105,27 @@ class FireSensorDataManager:
             result = self.db.execute(text(query), params)
             rows = result.fetchall()
             
-            return [
-                {
-                    'equipment_data_id': row[0],
-                    'equipment_id': row[1],
-                    'facility_id': row[2],
-                    'equipment_location': row[3],
-                    'measured_at': row[4],
-                    'temperature': float(row[5]) if row[5] is not None else None,
-                    'humidity': float(row[6]) if row[6] is not None else None,
-                    'smoke_density': float(row[7]) if row[7] is not None else None,
-                    'co_level': float(row[8]) if row[8] is not None else None,
-                    'gas_level': float(row[9]) if row[9] is not None else None
-                }
-                for row in rows
-            ]
+            data_list = []
+            for row in rows:
+                try:
+                    data = {
+                        'equipment_data_id': str(row[0]) if row[0] is not None else 'UNKNOWN',
+                        'equipment_id': str(row[1]) if row[1] is not None else 'UNKNOWN',
+                        'facility_id': str(row[2]) if row[2] is not None else 'UNKNOWN',
+                        'equipment_location': str(row[3]) if row[3] is not None else 'UNKNOWN',
+                        'measured_at': row[4],
+                        'temperature': float(row[5]) if row[5] is not None else None,
+                        'humidity': float(row[6]) if row[6] is not None else None,
+                        'smoke_density': float(row[7]) if row[7] is not None else None,
+                        'co_level': float(row[8]) if row[8] is not None else None,
+                        'gas_level': float(row[9]) if row[9] is not None else None
+                    }
+                    data_list.append(data)
+                except (ValueError, TypeError, IndexError) as e:
+                    logger.warning(f"Skipping invalid historical data row: {e}, row: {row}")
+                    continue
+            
+            return data_list
         except Exception as e:
             logger.error(f"Error getting historical data from database: {e}")
             # Fallback to API service if database is not available
@@ -138,18 +150,24 @@ class FireSensorDataManager:
             result = self.db.execute(text(query))
             rows = result.fetchall()
             
-            return [
-                {
-                    'facility_id': row[0],
-                    'equipment_count': row[1],
-                    'total_readings': row[2],
-                    'temp_readings': row[3],
-                    'smoke_readings': row[4],
-                    'avg_temperature': float(row[5]) if row[5] is not None else None,
-                    'max_smoke_density': float(row[6]) if row[6] is not None else None
-                }
-                for row in rows
-            ]
+            summary_list = []
+            for row in rows:
+                try:
+                    summary = {
+                        'facility_id': str(row[0]) if row[0] is not None else 'UNKNOWN',
+                        'equipment_count': int(row[1]) if row[1] is not None else 0,
+                        'total_readings': int(row[2]) if row[2] is not None else 0,
+                        'temp_readings': int(row[3]) if row[3] is not None else 0,
+                        'smoke_readings': int(row[4]) if row[4] is not None else 0,
+                        'avg_temperature': float(row[5]) if row[5] is not None else None,
+                        'max_smoke_density': float(row[6]) if row[6] is not None else None
+                    }
+                    summary_list.append(summary)
+                except (ValueError, TypeError, IndexError) as e:
+                    logger.warning(f"Skipping invalid facility summary row: {e}, row: {row}")
+                    continue
+            
+            return summary_list
         except Exception as e:
             logger.error(f"Error getting facility summary from database: {e}")
             # Fallback to API service if database is not available
@@ -173,23 +191,29 @@ class FireSensorDataManager:
             result = self.db.execute(text(query))
             rows = result.fetchall()
             
-            return [
-                {
-                    'equipment_data_id': row[0],
-                    'equipment_id': row[1],
-                    'facility_id': row[2],
-                    'equipment_location': row[3],
-                    'measured_at': row[4],
-                    'ingested_at': row[5],
-                    'temperature': float(row[6]) if row[6] is not None else None,
-                    'humidity': float(row[7]) if row[7] is not None else None,
-                    'smoke_density': float(row[8]) if row[8] is not None else None,
-                    'co_level': float(row[9]) if row[9] is not None else None,
-                    'gas_level': float(row[10]) if row[10] is not None else None,
-                    'version': row[11]
-                }
-                for row in rows
-            ]
+            equipment_list = []
+            for row in rows:
+                try:
+                    equipment_data = {
+                        'equipment_data_id': str(row[0]) if row[0] is not None else 'UNKNOWN',
+                        'equipment_id': str(row[1]) if row[1] is not None else 'UNKNOWN',
+                        'facility_id': str(row[2]) if row[2] is not None else 'UNKNOWN',
+                        'equipment_location': str(row[3]) if row[3] is not None else 'UNKNOWN',
+                        'measured_at': row[4],
+                        'ingested_at': row[5],
+                        'temperature': float(row[6]) if row[6] is not None else None,
+                        'humidity': float(row[7]) if row[7] is not None else None,
+                        'smoke_density': float(row[8]) if row[8] is not None else None,
+                        'co_level': float(row[9]) if row[9] is not None else None,
+                        'gas_level': float(row[10]) if row[10] is not None else None,
+                        'version': int(row[11]) if row[11] is not None else 1
+                    }
+                    equipment_list.append(equipment_data)
+                except (ValueError, TypeError, IndexError) as e:
+                    logger.warning(f"Skipping invalid row data: {e}, row: {row}")
+                    continue
+            
+            return equipment_list
         except Exception as e:
             logger.error(f"Error getting equipment status: {e}")
             return []

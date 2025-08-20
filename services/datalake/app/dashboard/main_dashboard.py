@@ -256,7 +256,7 @@ def main():
                 else:
                     return 'background-color: #f8d7da'  # Red
             
-            styled_df = health_df.style.applymap(color_health_score, subset=['health_score'])
+            styled_df = health_df.style.map(color_health_score, subset=['health_score'])
             st.dataframe(styled_df, use_container_width=True)
     
     # Footer with last update time

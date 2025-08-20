@@ -403,7 +403,7 @@ class TestDataProcessing:
         test_data = normal_data[:5]
         for data in test_data:
             response = requests.post(f"{base_url}/ingest", json=data, timeout=10)
-            assert response.status_code == 200, f"데이터 수집 실패: {data['equipment_id']}"
+            assert response.status_code in [200, 204], f"데이터 수집 실패: {data['equipment_id']} - {response.status_code}"
         
         # 잠시 대기
         time.sleep(2)

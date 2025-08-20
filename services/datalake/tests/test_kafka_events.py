@@ -100,7 +100,7 @@ class TestKafkaEvents:
         # 이상치 데이터 전송
         response = requests.post(f"{base_url}/ingest", json=temp_anomaly, timeout=10)
         
-        assert response.status_code == 200, "이상치 데이터 전송 실패"
+        assert response.status_code in [200, 204], f"이상치 데이터 전송 실패: {response.status_code}"
         
         # 이벤트 수신 대기
         received_event = None

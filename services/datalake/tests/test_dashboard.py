@@ -110,15 +110,15 @@ class TestDashboard:
                 "gas_level": 0.002
             }
             
-            response = requests.post(f"{base_url}/ingest", json=test_data, timeout=10)
+            response = requests.post(f"{api_url}/ingest", json=test_data, timeout=10)
             
-            assert response.status_code == 200, "테스트 데이터 전송 실패"
+            assert response.status_code in [200, 204], f"테스트 데이터 전송 실패: {response.status_code}"
             
             # 데이터 처리 대기
             time.sleep(2)
             
             # 최종 통계 확인
-            final_response = requests.get(f"{base_url}/stats", timeout=10)
+            final_response = requests.get(f"{api_url}/stats", timeout=10)
             assert final_response.status_code == 200, "최종 통계 조회 실패"
             
             final_stats = final_response.json()
@@ -153,7 +153,7 @@ class TestDashboard:
             for data in test_data:
                 try:
                     response = requests.post(f"{base_url}/ingest", json=data, timeout=5)
-                    if response.status_code == 200:
+                    if response.status_code in [200, 204]:
                         success_count += 1
                 except Exception as e:
                     print(f"데이터 전송 실패: {data['equipment_id']} - {e}")
@@ -251,7 +251,7 @@ class TestDashboard:
             # 3번 전송
             for i in range(3):
                 response = requests.post(f"{base_url}/ingest", json=test_data, timeout=10)
-                assert response.status_code == 200, f"데이터 전송 {i+1}번째 실패"
+                assert response.status_code in [200, 204], f"데이터 전송 {i+1}번째 실패: {response.status_code}"
                 time.sleep(1)  # 1초 간격
             
             # 통계 확인

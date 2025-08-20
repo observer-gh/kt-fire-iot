@@ -7,10 +7,27 @@ import pytest
 import asyncio
 import requests
 import time
+import os
 from typing import Dict, List, Generator
 import json
 import random
 from datetime import datetime, timedelta
+
+# 테스트 실행 전 환경변수 설정
+def setup_test_environment():
+    """테스트 환경 설정"""
+    os.environ["POSTGRES_URL"] = "postgresql://postgres:postgres@localhost:5433/datalake"
+    os.environ["POSTGRES_HOST"] = "localhost"
+    os.environ["POSTGRES_PORT"] = "5433"
+    os.environ["POSTGRES_DB"] = "datalake"
+    os.environ["POSTGRES_USER"] = "postgres"
+    os.environ["POSTGRES_PASSWORD"] = "postgres"
+    os.environ["REDIS_URL"] = "redis://localhost:6379"
+    os.environ["KAFKA_BROKERS"] = "localhost:9092"
+    os.environ["STORAGE_TYPE"] = "mock"
+
+# 테스트 환경 설정 실행
+setup_test_environment()
 
 # 테스트 설정
 TEST_CONFIG = {
