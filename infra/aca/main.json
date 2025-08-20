@@ -1,0 +1,590 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.37.4.10188",
+      "templateHash": "9744971786626699609"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "The location for all resources"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "defaultValue": "dev",
+      "metadata": {
+        "description": "Environment name (dev, staging, prod)"
+      }
+    },
+    "dockerHubOrg": {
+      "type": "string",
+      "metadata": {
+        "description": "Docker Hub organization name"
+      }
+    },
+    "imageTag": {
+      "type": "string",
+      "defaultValue": "latest",
+      "metadata": {
+        "description": "Image tag to deploy"
+      }
+    },
+    "postgresAdminUsername": {
+      "type": "string",
+      "defaultValue": "fireiot_admin",
+      "metadata": {
+        "description": "PostgreSQL admin username"
+      }
+    },
+    "postgresAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "PostgreSQL admin password"
+      }
+    },
+    "eventHubNamespaceName": {
+      "type": "string",
+      "defaultValue": "[format('fire-iot-eventhub-{0}', parameters('environment'))]",
+      "metadata": {
+        "description": "Event Hubs namespace name"
+      }
+    }
+  },
+  "variables": {
+    "containerAppsEnvironmentName": "[format('fire-iot-{0}', parameters('environment'))]",
+    "appNamePrefix": "[format('app-{0}', parameters('environment'))]",
+    "vnetName": "[format('fire-iot-vnet-{0}', parameters('environment'))]",
+    "subnetName": "container-apps-subnet"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "10.0.1.0/24",
+              "delegations": [
+                {
+                  "name": "delegation",
+                  "properties": {
+                    "serviceName": "Microsoft.App/containerApps"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[format('fire-iot-appinsights-{0}', parameters('environment'))]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('fire-iot-logs-{0}', uniqueString(resourceGroup().id)))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('fire-iot-logs-{0}', uniqueString(resourceGroup().id)))]"
+      ]
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[format('fire-iot-logs-{0}', uniqueString(resourceGroup().id))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.EventHub/namespaces",
+      "apiVersion": "2023-01-01-preview",
+      "name": "[parameters('eventHubNamespaceName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Standard",
+        "capacity": 1
+      },
+      "properties": {
+        "zoneRedundant": false,
+        "isAutoInflateEnabled": false,
+        "maximumThroughputUnits": 1
+      }
+    },
+    {
+      "type": "Microsoft.EventHub/namespaces/eventhubs",
+      "apiVersion": "2023-01-01-preview",
+      "name": "[format('{0}/{1}', parameters('eventHubNamespaceName'), 'sensor-data')]",
+      "properties": {
+        "messageRetentionInDays": 7,
+        "partitionCount": 4,
+        "status": "Active"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubNamespaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.EventHub/namespaces/eventhubs",
+      "apiVersion": "2023-01-01-preview",
+      "name": "[format('{0}/{1}', parameters('eventHubNamespaceName'), 'alerts')]",
+      "properties": {
+        "messageRetentionInDays": 7,
+        "partitionCount": 4,
+        "status": "Active"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubNamespaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.EventHub/namespaces/eventhubs",
+      "apiVersion": "2023-01-01-preview",
+      "name": "[format('{0}/{1}', parameters('eventHubNamespaceName'), 'control-events')]",
+      "properties": {
+        "messageRetentionInDays": 7,
+        "partitionCount": 4,
+        "status": "Active"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubNamespaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.EventHub/namespaces/authorizationRules",
+      "apiVersion": "2023-01-01-preview",
+      "name": "[format('{0}/{1}', parameters('eventHubNamespaceName'), 'RootManageSharedAccessKey')]",
+      "properties": {
+        "rights": [
+          "Listen",
+          "Manage",
+          "Send"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubNamespaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+      "apiVersion": "2023-06-01-preview",
+      "name": "[format('fire-iot-postgres-{0}', parameters('environment'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_B1ms",
+        "tier": "Burstable"
+      },
+      "properties": {
+        "administratorLogin": "[parameters('postgresAdminUsername')]",
+        "administratorLoginPassword": "[parameters('postgresAdminPassword')]",
+        "version": "14",
+        "storage": {
+          "storageSizeGB": 32
+        },
+        "network": {
+          "delegatedSubnetResourceId": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2023-09-01').subnets[0].id]",
+          "privateDnsZoneArmResourceId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.postgres.database.azure.com')]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.postgres.database.azure.com')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "privatelink.postgres.database.azure.com",
+      "location": "global",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[format('{0}/{1}', 'privatelink.postgres.database.azure.com', 'fire-iot-link')]",
+      "location": "global",
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.postgres.database.azure.com')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Cache/redis",
+      "apiVersion": "2023-08-01",
+      "name": "[format('fire-iot-redis-{0}', parameters('environment'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "Basic",
+          "family": "C",
+          "capacity": 0
+        },
+        "enableNonSslPort": false,
+        "minimumTlsVersion": "1.2"
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('containerAppsEnvironmentName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('fire-iot-logs-{0}', uniqueString(resourceGroup().id))), '2022-10-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('fire-iot-logs-{0}', uniqueString(resourceGroup().id))), '2022-10-01').primarySharedKey]"
+          }
+        },
+        "vnetConfiguration": {
+          "infrastructureSubnetId": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2023-09-01').subnets[0].id]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('fire-iot-logs-{0}', uniqueString(resourceGroup().id)))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-controltower', variables('appNamePrefix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppsEnvironmentName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8080,
+            "allowInsecure": false
+          },
+          "secrets": [
+            {
+              "name": "postgres-connection",
+              "value": "[format('postgresql://{0}:{1}@{2}:5432/fireiot', parameters('postgresAdminUsername'), parameters('postgresAdminPassword'), reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment'))), '2023-06-01-preview').fullyQualifiedDomainName)]"
+            },
+            {
+              "name": "eventhub-connection",
+              "value": "[listKeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubNamespaceName'), 'RootManageSharedAccessKey'), '2023-01-01-preview').primaryConnectionString]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "controltower",
+              "image": "[format('{0}/controltower:{1}', parameters('dockerHubOrg'), parameters('imageTag'))]",
+              "env": [
+                {
+                  "name": "SPRING_PROFILES_ACTIVE",
+                  "value": "cloud"
+                },
+                {
+                  "name": "POSTGRES_URL",
+                  "secretRef": "postgres-connection"
+                },
+                {
+                  "name": "EVENTHUB_CONNECTION_STRING",
+                  "secretRef": "eventhub-connection"
+                },
+                {
+                  "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                  "value": "[format('https://{0}.live.applicationinsights.azure.com/v2.1/traces', reference(resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment'))), '2020-02-02').InstrumentationKey)]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppsEnvironmentName'))]",
+        "[resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubNamespaceName'), 'RootManageSharedAccessKey')]",
+        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-facilitymanagement', variables('appNamePrefix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppsEnvironmentName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8080,
+            "allowInsecure": false
+          },
+          "secrets": [
+            {
+              "name": "postgres-connection",
+              "value": "[format('postgresql://{0}:{1}@{2}:5432/fireiot', parameters('postgresAdminUsername'), parameters('postgresAdminPassword'), reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment'))), '2023-06-01-preview').fullyQualifiedDomainName)]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "facilitymanagement",
+              "image": "[format('{0}/facilitymanagement:{1}', parameters('dockerHubOrg'), parameters('imageTag'))]",
+              "env": [
+                {
+                  "name": "SPRING_PROFILES_ACTIVE",
+                  "value": "cloud"
+                },
+                {
+                  "name": "POSTGRES_URL",
+                  "secretRef": "postgres-connection"
+                },
+                {
+                  "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                  "value": "[format('https://{0}.live.applicationinsights.azure.com/v2.1/traces', reference(resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment'))), '2020-02-02').InstrumentationKey)]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppsEnvironmentName'))]",
+        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-datalake', variables('appNamePrefix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppsEnvironmentName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8080,
+            "allowInsecure": false
+          },
+          "secrets": [
+            {
+              "name": "postgres-connection",
+              "value": "[format('postgresql://{0}:{1}@{2}:5432/fireiot', parameters('postgresAdminUsername'), parameters('postgresAdminPassword'), reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment'))), '2023-06-01-preview').fullyQualifiedDomainName)]"
+            },
+            {
+              "name": "redis-connection",
+              "value": "[format('redis://{0}:6380', reference(resourceId('Microsoft.Cache/redis', format('fire-iot-redis-{0}', parameters('environment'))), '2023-08-01').hostName)]"
+            },
+            {
+              "name": "eventhub-connection",
+              "value": "[listKeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubNamespaceName'), 'RootManageSharedAccessKey'), '2023-01-01-preview').primaryConnectionString]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "datalake",
+              "image": "[format('{0}/datalake:{1}', parameters('dockerHubOrg'), parameters('imageTag'))]",
+              "env": [
+                {
+                  "name": "PROFILE",
+                  "value": "cloud"
+                },
+                {
+                  "name": "POSTGRES_URL",
+                  "secretRef": "postgres-connection"
+                },
+                {
+                  "name": "REDIS_URL",
+                  "secretRef": "redis-connection"
+                },
+                {
+                  "name": "EVENTHUB_CONN",
+                  "secretRef": "eventhub-connection"
+                },
+                {
+                  "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                  "value": "[format('https://{0}.live.applicationinsights.azure.com/v2.1/traces', reference(resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment'))), '2020-02-02').InstrumentationKey)]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('1.0')]",
+                "memory": "2Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 5
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppsEnvironmentName'))]",
+        "[resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubNamespaceName'), 'RootManageSharedAccessKey')]",
+        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment')))]",
+        "[resourceId('Microsoft.Cache/redis', format('fire-iot-redis-{0}', parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-alert', variables('appNamePrefix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppsEnvironmentName'))]",
+        "configuration": {
+          "ingress": {
+            "external": false,
+            "targetPort": 8080,
+            "allowInsecure": false
+          },
+          "secrets": [
+            {
+              "name": "postgres-connection",
+              "value": "[format('postgresql://{0}:{1}@{2}:5432/fireiot', parameters('postgresAdminUsername'), parameters('postgresAdminPassword'), reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment'))), '2023-06-01-preview').fullyQualifiedDomainName)]"
+            },
+            {
+              "name": "redis-connection",
+              "value": "[format('redis://{0}:6380', reference(resourceId('Microsoft.Cache/redis', format('fire-iot-redis-{0}', parameters('environment'))), '2023-08-01').hostName)]"
+            },
+            {
+              "name": "eventhub-connection",
+              "value": "[listKeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubNamespaceName'), 'RootManageSharedAccessKey'), '2023-01-01-preview').primaryConnectionString]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "alert",
+              "image": "[format('{0}/alert:{1}', parameters('dockerHubOrg'), parameters('imageTag'))]",
+              "env": [
+                {
+                  "name": "PROFILE",
+                  "value": "cloud"
+                },
+                {
+                  "name": "POSTGRES_URL",
+                  "secretRef": "postgres-connection"
+                },
+                {
+                  "name": "REDIS_URL",
+                  "secretRef": "redis-connection"
+                },
+                {
+                  "name": "EVENTHUB_CONN",
+                  "secretRef": "eventhub-connection"
+                },
+                {
+                  "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                  "value": "[format('https://{0}.live.applicationinsights.azure.com/v2.1/traces', reference(resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment'))), '2020-02-02').InstrumentationKey)]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment')))]",
+        "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppsEnvironmentName'))]",
+        "[resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubNamespaceName'), 'RootManageSharedAccessKey')]",
+        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment')))]",
+        "[resourceId('Microsoft.Cache/redis', format('fire-iot-redis-{0}', parameters('environment')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "controlTowerUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-controltower', variables('appNamePrefix'))), '2023-05-01').configuration.ingress.fqdn)]"
+    },
+    "facilityManagementUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-facilitymanagement', variables('appNamePrefix'))), '2023-05-01').configuration.ingress.fqdn)]"
+    },
+    "dataLakeUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-datalake', variables('appNamePrefix'))), '2023-05-01').configuration.ingress.fqdn)]"
+    },
+    "dockerHubOrg": {
+      "type": "string",
+      "value": "[parameters('dockerHubOrg')]"
+    },
+    "eventHubNamespace": {
+      "type": "string",
+      "value": "[parameters('eventHubNamespaceName')]"
+    },
+    "postgresServerFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', format('fire-iot-postgres-{0}', parameters('environment'))), '2023-06-01-preview').fullyQualifiedDomainName]"
+    },
+    "redisHostName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Cache/redis', format('fire-iot-redis-{0}', parameters('environment'))), '2023-08-01').hostName]"
+    },
+    "appInsightsInstrumentationKey": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Insights/components', format('fire-iot-appinsights-{0}', parameters('environment'))), '2020-02-02').InstrumentationKey]"
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.OperationalInsights/workspaces', format('fire-iot-logs-{0}', uniqueString(resourceGroup().id)))]"
+    }
+  }
+}
