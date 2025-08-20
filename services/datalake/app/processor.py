@@ -123,12 +123,9 @@ class DataProcessor:
     def _check_anomalies(cls, data: RawSensorData) -> Tuple[bool, Optional[str], Optional[float], Optional[float]]:
         """Check if any sensor values trigger anomalies"""
         
-        print(f"🔍 이상치 탐지 시작: temp={data.temperature}, smoke={data.smoke_density}, co={data.co_level}")
-        
         # Check temperature
         if data.temperature is not None:
             thresholds = cls.THRESHOLDS["temperature"]
-            print(f"🌡️ 온도 검사: {data.temperature} vs warn={thresholds['warn']}, emergency={thresholds['emergency']}")
             if data.temperature >= thresholds["emergency"]:
                 print(f"🚨 온도 비상 이상치: {data.temperature} >= {thresholds['emergency']}")
                 return True, "temperature", data.temperature, thresholds["emergency"]
@@ -139,7 +136,6 @@ class DataProcessor:
         # Check smoke_density
         if data.smoke_density is not None:
             thresholds = cls.THRESHOLDS["smoke_density"]
-            print(f"💨 연기 검사: {data.smoke_density} vs warn={thresholds['warn']}, emergency={thresholds['emergency']}")
             if data.smoke_density >= thresholds["emergency"]:
                 print(f"🚨 연기 비상 이상치: {data.smoke_density} >= {thresholds['emergency']}")
                 return True, "smoke_density", data.smoke_density, thresholds["emergency"]
@@ -150,7 +146,6 @@ class DataProcessor:
         # Check co_level
         if data.co_level is not None:
             thresholds = cls.THRESHOLDS["co_level"]
-            print(f"☠️ CO 검사: {data.co_level} vs warn={thresholds['warn']}, emergency={thresholds['emergency']}")
             if data.co_level >= thresholds["emergency"]:
                 print(f"🚨 CO 비상 이상치: {data.co_level} >= {thresholds['emergency']}")
                 return True, "co_level", data.co_level, thresholds["emergency"]
@@ -158,5 +153,5 @@ class DataProcessor:
                 print(f"⚠️ CO 경고 이상치: {data.co_level} >= {thresholds['warn']}")
                 return True, "co_level", data.co_level, thresholds["warn"]
 
-        print("✅ 이상치 없음")
+        # 이상치가 없을 때는 로그 출력하지 않음
         return False, None, None, None

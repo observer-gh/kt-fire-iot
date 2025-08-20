@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     
     # Redis settings
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_flush_interval_seconds: int = int(os.getenv("REDIS_FLUSH_INTERVAL_SECONDS", "60"))
     
     # Kafka settings
     kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "kafka:29092")

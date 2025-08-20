@@ -100,7 +100,8 @@ async def redis_status():
         redis_info = {
             "connected": True,
             "url": settings.redis_url,
-            "ping": "pong"
+            "ping": "pong",
+            "sensor_data_count": redis_client.get_sensor_data_count()
         }
         
         return redis_info
@@ -144,10 +145,10 @@ async def ingest_sensor_data(
                 # 데이터 처리
                 processed_data = DataProcessor.process_sensor_data(raw_data)
                 
-                # 데이터베이스에 저장
-                save_success = storage_service.save_sensor_data(processed_data)
-                if not save_success:
-                    logger.error(f"데이터 저장 실패: {raw_data.equipment_id}")
+                # Redis에 센서 데이터 저장 (실시간 저장)
+                redis_save_success = redis_client.save_sensor_data(processed_data.dict())
+                if not redis_save_success:
+                    logger.error(f"Redis 저장 실패: {raw_data.equipment_id}")
                     continue
                 
                 # 이상치 탐지 및 이벤트 발행
@@ -161,11 +162,8 @@ async def ingest_sensor_data(
                     )
                     logger.info(f"🚨 이상치 탐지됨: {processed_data.equipment_id} - {processed_data.anomaly_metric} = {processed_data.anomaly_value}")
                 
-                # 센서 데이터 이벤트 발행
-                background_tasks.add_task(
-                    kafka_publisher.publish_sensor_data, 
-                    processed_data
-                )
+                # 센서 데이터 이벤트는 Redis flush 시에만 발행되므로 여기서는 발행하지 않음
+                logger.info(f"✅ 센서 데이터 Redis 저장 완료: {processed_data.equipment_id}")
                 
             except Exception as e:
                 logger.error(f"개별 데이터 처리 오류 ({raw_data.equipment_id}): {e}")
@@ -191,7 +189,7 @@ async def ingest_sensor_data(
             return response_data
         else:
             # 정상 데이터인 경우 204 No Content 반환
-            logger.info(f"✅ 정상 데이터 처리 완료: 총 {len(raw_data_list)}개 처리됨")
+            logger.info(f"✅ 정상 데이터 처리 완료: 총 {len(raw_data_list)}개 Redis에 저장됨")
             return Response(status_code=204)
 
     except Exception as e:
@@ -224,10 +222,10 @@ async def ingest_stream_data(
                 # 데이터 처리
                 processed_data = DataProcessor.process_sensor_data(raw_data)
                 
-                # 데이터베이스에 저장
-                save_success = storage_service.save_sensor_data(processed_data)
-                if not save_success:
-                    logger.error(f"스트리밍 데이터 저장 실패: {raw_data.equipment_id}")
+                # Redis에 센서 데이터 저장
+                redis_save_success = redis_client.save_sensor_data(processed_data.dict())
+                if not redis_save_success:
+                    logger.error(f"Redis 저장 실패: {raw_data.equipment_id}")
                     continue
                 
                 processed_count += 1
@@ -241,11 +239,8 @@ async def ingest_stream_data(
                     )
                     logger.info(f"🚨 스트리밍 이상치 탐지: {processed_data.equipment_id}")
                 
-                # 센서 데이터 이벤트 발행
-                background_tasks.add_task(
-                    kafka_publisher.publish_sensor_data, 
-                    processed_data
-                )
+                # 센서 데이터 이벤트는 Redis flush 시에만 발행
+                logger.info(f"✅ 스트리밍 데이터 Redis 저장 완료: {processed_data.equipment_id}")
                 
             except Exception as e:
                 logger.error(f"스트리밍 데이터 처리 오류 ({raw_data.equipment_id}): {e}")
@@ -290,10 +285,10 @@ async def ingest_batch_data(
                 # 데이터 처리
                 processed_data = DataProcessor.process_sensor_data(raw_data)
                 
-                # 데이터베이스에 저장
-                save_success = storage_service.save_sensor_data(processed_data)
-                if not save_success:
-                    logger.error(f"배치 데이터 저장 실패: {raw_data.equipment_id}")
+                # Redis에 센서 데이터 저장
+                redis_save_success = redis_client.save_sensor_data(processed_data.dict())
+                if not redis_save_success:
+                    logger.error(f"Redis 저장 실패: {raw_data.equipment_id}")
                     continue
                 
                 processed_count += 1
@@ -307,11 +302,8 @@ async def ingest_batch_data(
                     )
                     logger.info(f"🚨 배치 이상치 탐지: {processed_data.equipment_id}")
                 
-                # 센서 데이터 이벤트 발행
-                background_tasks.add_task(
-                    kafka_publisher.publish_sensor_data, 
-                    processed_data
-                )
+                # 센서 데이터 이벤트는 Redis flush 시에만 발행
+                logger.info(f"✅ 배치 데이터 Redis 저장 완료: {processed_data.equipment_id}")
                 
             except Exception as e:
                 logger.error(f"배치 데이터 처리 오류 ({raw_data.equipment_id}): {e}")
@@ -343,10 +335,10 @@ async def ingest_external_sensor_data(
         # 데이터 처리
         processed_data = DataProcessor.process_sensor_data(raw_data)
 
-        # 데이터베이스에 저장
-        save_success = storage_service.save_sensor_data(processed_data)
-        if not save_success:
-            raise HTTPException(status_code=500, detail="Failed to save data to database")
+        # Redis에 센서 데이터 저장
+        redis_save_success = redis_client.save_sensor_data(processed_data.dict())
+        if not redis_save_success:
+            raise HTTPException(status_code=500, detail="Failed to save data to Redis")
 
         # 이상치 탐지 및 이벤트 발행
         if processed_data.is_anomaly:
@@ -356,11 +348,8 @@ async def ingest_external_sensor_data(
             )
             logger.info(f"🚨 외부 API 이상치 탐지: {processed_data.equipment_id} - {processed_data.anomaly_metric} = {processed_data.anomaly_value}")
 
-        # 센서 데이터 이벤트 발행
-        background_tasks.add_task(
-            kafka_publisher.publish_sensor_data, 
-            processed_data
-        )
+        # 센서 데이터 이벤트는 Redis flush 시에만 발행
+        logger.info(f"✅ 외부 API 데이터 Redis 저장 완료: {processed_data.equipment_id}")
 
         # 이상치가 있는 경우에만 응답 반환
         if processed_data.is_anomaly:
@@ -400,6 +389,16 @@ async def trigger_batch_upload():
     except Exception as e:
         logger.error(f"Manual batch upload error: {e}")
         raise HTTPException(status_code=500, detail="Batch upload failed")
+
+@app.post("/trigger-redis-flush")
+async def trigger_redis_flush():
+    """Manually trigger Redis data flush"""
+    try:
+        await batch_scheduler.force_redis_flush()
+        return {"status": "success", "message": "Redis flush triggered"}
+    except Exception as e:
+        logger.error(f"Manual Redis flush error: {e}")
+        raise HTTPException(status_code=500, detail="Redis flush failed")
 
 @app.post("/trigger-mock-data-process")
 async def trigger_mock_data_process():
@@ -455,6 +454,9 @@ async def get_stats():
         # Get mock scheduler status
         mock_scheduler_status = mock_data_scheduler.get_status()
         
+        # Get Redis data count
+        redis_data_count = redis_client.get_sensor_data_count()
+        
         stats_data = {
             "realtime_records": realtime_count,
             "active_alerts": alert_count,
@@ -466,6 +468,8 @@ async def get_stats():
             "mock_server_url": settings.mock_server_url,
             "mock_server_data_fetch_interval": settings.mock_server_data_fetch_interval_seconds,
             "storage_stats": storage_stats,
+            "redis_sensor_data_count": redis_data_count,
+            "redis_flush_interval_seconds": batch_scheduler.flush_interval_seconds,
             "cached": False
         }
         

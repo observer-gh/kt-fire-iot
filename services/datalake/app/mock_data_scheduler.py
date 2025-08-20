@@ -2,16 +2,17 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
-from .mock_server_client import MockServerClient
-from .processor import DataProcessor
+
 from .storage_service import StorageService
 from .publisher import KafkaPublisher
-from .config import settings
+from .mock_server_client import MockServerClient
+from .processor import DataProcessor
+from .redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 
 class MockDataScheduler:
-    """Mock Server에서 주기적으로 데이터를 가져와서 처리하는 스케줄러"""
+    """Mock Server에서 데이터를 주기적으로 가져와서 처리하는 스케줄러"""
     
     def __init__(self, storage_service: StorageService, kafka_publisher: KafkaPublisher):
         self.storage_service = storage_service
@@ -19,8 +20,13 @@ class MockDataScheduler:
         self.mock_server_client = MockServerClient()
         self.is_running = False
         self.task: Optional[asyncio.Task] = None
+        
+        # 설정에서 폴링 간격 가져오기
+        from .config import settings
         self.data_fetch_interval = settings.mock_server_data_fetch_interval_seconds
         
+        logger.info(f"Mock Data Scheduler 초기화됨. 폴링 간격: {self.data_fetch_interval}초")
+    
     async def start(self):
         """스케줄러를 시작합니다."""
         if self.is_running:
@@ -60,8 +66,6 @@ class MockDataScheduler:
     async def _process_mock_data(self):
         """Mock Server에서 데이터를 가져와서 처리합니다."""
         try:
-            logger.info("Mock Server에서 데이터를 폴링하는 중...")
-            
             # Mock Server 상태 확인
             if not await self.mock_server_client.health_check():
                 logger.warning("Mock Server가 응답하지 않습니다. 다음 폴링까지 대기합니다.")
@@ -73,10 +77,10 @@ class MockDataScheduler:
             raw_data_list = await self.mock_server_client.get_stream_data(stream_count)
             
             if not raw_data_list:
-                logger.info("Mock Server에서 데이터를 받지 못했습니다.")
+                logger.debug("Mock Server에서 데이터를 받지 못했습니다.")
                 return
             
-            logger.info(f"Mock Server에서 {len(raw_data_list)}개의 데이터를 받았습니다.")
+            logger.debug(f"Mock Server에서 {len(raw_data_list)}개의 데이터를 받았습니다.")
             
             # 각 데이터를 처리
             processed_count = 0
@@ -87,10 +91,10 @@ class MockDataScheduler:
                     # 데이터 처리
                     processed_data = DataProcessor.process_sensor_data(raw_data)
                     
-                    # 데이터베이스에 저장
-                    save_success = self.storage_service.save_sensor_data(processed_data)
-                    if not save_success:
-                        logger.error(f"Mock 데이터 저장 실패: {raw_data.equipment_id}")
+                    # Redis에 센서 데이터 저장 (실시간 저장)
+                    redis_save_success = redis_client.save_sensor_data(processed_data.dict())
+                    if not redis_save_success:
+                        logger.error(f"Redis 저장 실패: {raw_data.equipment_id}")
                         continue
                     
                     processed_count += 1
@@ -98,17 +102,19 @@ class MockDataScheduler:
                     # 이상치 탐지 및 이벤트 발행
                     if processed_data.is_anomaly:
                         anomaly_count += 1
-                        await self.kafka_publisher.publish_anomaly_detected(processed_data)
+                        self.kafka_publisher.publish_anomaly_detected(processed_data)
                         logger.info(f"🚨 Mock 데이터 이상치 탐지: {processed_data.equipment_id} - {processed_data.anomaly_metric} = {processed_data.anomaly_value}")
                     
-                    # 센서 데이터 이벤트 발행
-                    await self.kafka_publisher.publish_sensor_data(processed_data)
+                    # 센서 데이터 이벤트는 Redis flush 시에만 발행되므로 여기서는 발행하지 않음
+                    logger.debug(f"Mock 데이터 Redis 저장 완료: {processed_data.equipment_id}")
                     
                 except Exception as e:
                     logger.error(f"Mock 데이터 처리 오류 ({raw_data.equipment_id}): {e}")
                     continue
             
-            logger.info(f"Mock 데이터 처리 완료: {processed_count}개 처리됨, {anomaly_count}개 이상치 탐지")
+            # 이상치가 있거나 처리된 데이터가 많은 경우에만 로그 출력
+            if anomaly_count > 0 or processed_count > 0:
+                logger.info(f"Mock 데이터 처리 완료: {processed_count}개 Redis에 저장됨, {anomaly_count}개 이상치 탐지")
             
         except Exception as e:
             logger.error(f"Mock 데이터 처리 중 오류 발생: {e}")

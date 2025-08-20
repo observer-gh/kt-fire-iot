@@ -7,7 +7,7 @@ import uuid
 
 from .database import execute_query, execute_many
 from .db_models import Realtime, Alert
-from .models import ProcessedSensorData, SensorDataSavedEvent
+from .models import ProcessedSensorData
 from .config import settings
 from .storage_interface import StorageInterface
 
