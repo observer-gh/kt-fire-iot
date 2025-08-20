@@ -1,7 +1,6 @@
-using '../main.bicep'
+using './main.bicep'
 
-param resourceGroupName = 'Project_Team_05'
-param location = 'eastus'
+param location = 'koreacentral'
 param environment = 'dev'
 param dockerHubOrg = 'johnha97'
 param imageTag = 'latest'

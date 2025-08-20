@@ -6,10 +6,9 @@ This directory contains Bicep templates and deployment scripts for deploying the
 
 The deployment creates the following Azure resources:
 
-- **Azure Container Apps Environment** - Hosts all microservices
-- **Azure Container Registry** - Stores Docker images
+- **Azure App Service Plan** - Hosts all microservices as Web Apps
 - **Azure Event Hubs** - Message broker for inter-service communication
-- **Azure Database for PostgreSQL** - Primary database
+- **Azure Database for PostgreSQL** - Primary database with private networking
 - **Azure Cache for Redis** - Caching layer
 - **Application Insights** - Monitoring and logging
 - **Log Analytics Workspace** - Centralized logging
@@ -20,10 +19,9 @@ The deployment creates the following Azure resources:
 Before deploying, ensure you have:
 
 1. **Azure CLI** installed and configured
-2. **Bicep** CLI installed
-3. **Docker** installed and running
-4. **PostgreSQL client** (for database setup)
-5. **Azure subscription** with appropriate permissions
+2. **Docker** installed and running
+3. **Azure subscription** with appropriate permissions
+4. **Docker Hub account** with images pushed
 
 ### Install Prerequisites
 
@@ -31,19 +29,12 @@ Before deploying, ensure you have:
 # Install Azure CLI
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-# Install Bicep
-az bicep install
-
 # Install Docker (if not already installed)
 # macOS: brew install docker
 # Ubuntu: sudo apt-get install docker.io
-
-# Install PostgreSQL client
-# macOS: brew install postgresql
-# Ubuntu: sudo apt-get install postgresql-client
 ```
 
-## 🚀 Deployment
+## 🚀 Quick Deployment
 
 ### Single Command Deployment
 
@@ -53,22 +44,20 @@ Run the deployment script that handles everything:
 # Make script executable
 chmod +x deploy.sh
 
-# Basic deployment with defaults
+# Deploy with default settings
 ./deploy.sh
-
-# Custom deployment
-./deploy.sh your-dockerhub-org v1.0.0 YourSecurePassword123!
 ```
 
 ### What the Script Does
 
 The `deploy.sh` script performs these steps automatically:
 
-1. **Prerequisites Check** - Verifies Azure CLI, Bicep, Docker, and Azure login
-2. **Infrastructure Deployment** - Deploys all Azure resources using Bicep
-3. **Docker Image Building** - Builds and pushes all microservice images to ACR
-4. **Database Setup** - Creates PostgreSQL database and schema
-5. **Verification** - Tests service endpoints and displays results
+1. **Prerequisites Check** - Verifies Azure CLI, Docker, and Azure login status
+2. **Azure Login** - Logs in only if not already authenticated
+3. **Resource Group Creation** - Creates the resource group if it doesn't exist
+4. **Docker Image Verification** - Checks if required images exist in Docker Hub
+5. **Infrastructure Deployment** - Deploys all Azure resources using Bicep
+6. **Output Display** - Shows deployment outputs (URLs, connection strings, etc.)
 
 ## 📁 Files Overview
 
@@ -80,26 +69,57 @@ The `deploy.sh` script performs these steps automatically:
 
 ## 🔧 Configuration
 
-### Configuration Management
+### Current Configuration
 
-The deployment uses a **single parameter file** for simplicity:
+The deployment uses these default settings:
 
-- **`parameters.bicepparam`** - All configuration settings
-
-The script reads all configuration from this file, making it easy to manage and modify settings.
+```bash
+RESOURCE_GROUP="Project_Team_05"
+LOCATION="koreacentral"
+ENVIRONMENT="dev"
+DOCKER_HUB_ORG="johnha97"
+IMAGE_TAG="latest"
+```
 
 ### Custom Parameters
 
-Edit `parameters.dev.bicepparam` to customize:
+Edit `parameters.bicepparam` to customize:
 
 ```bicep
-param resourceGroupName = 'Project_Team_05'
-param location = 'eastus'
+param location = 'koreacentral'
 param environment = 'dev'
-param dockerHubOrg = 'your-dockerhub-org'
+param dockerHubOrg = 'johnha97'
 param imageTag = 'latest'
 param postgresAdminUsername = 'fireiot_admin'
 param postgresAdminPassword = 'YourSecurePassword123!'
+```
+
+## 🐳 Docker Images
+
+The deployment expects these images to exist in Docker Hub:
+
+- `johnha97/controltower:latest`
+- `johnha97/facilitymanagement:latest`
+- `johnha97/datalake:latest`
+- `johnha97/alert:latest`
+
+### Building Images (if needed)
+
+If images don't exist, build and push them first:
+
+```bash
+# Build and push each service
+docker build -t johnha97/controltower:latest ./services/controltower/
+docker push johnha97/controltower:latest
+
+docker build -t johnha97/facilitymanagement:latest ./services/facilitymanagement/
+docker push johnha97/facilitymanagement:latest
+
+docker build -t johnha97/datalake:latest ./services/datalake/
+docker push johnha97/datalake:latest
+
+docker build -t johnha97/alert:latest ./services/alert/
+docker push johnha97/alert:latest
 ```
 
 ## 🗄️ Database Schema
@@ -115,7 +135,7 @@ The deployment creates a PostgreSQL database with these tables:
 
 After deployment, monitor your services:
 
-1. **Azure Portal** → Container Apps
+1. **Azure Portal** → App Services
 2. **Application Insights** → Live Metrics
 3. **Log Analytics** → Log queries
 4. **Event Hubs** → Throughput metrics
@@ -125,10 +145,10 @@ After deployment, monitor your services:
 Test your deployed services:
 
 ```bash
-# Get service URLs
+# Get service URLs from deployment outputs
 az deployment group show \
   --resource-group Project_Team_05 \
-  --name main \
+  --name fire-iot-$(date +%Y%m%d-%H%M%S) \
   --query properties.outputs
 
 # Test health endpoints
@@ -149,19 +169,19 @@ az group delete --name Project_Team_05 --yes --no-wait
 
 ### Common Issues
 
-1. **Bicep validation errors**: Run `bicep build main.bicep` to check syntax
-2. **Docker build failures**: Ensure Docker is running and images are accessible
-3. **Database connection issues**: Check PostgreSQL server is running and accessible
-4. **Container Apps not starting**: Check logs in Azure Portal
+1. **Docker images not found**: Build and push images to Docker Hub first
+2. **Azure login issues**: Run `az login` manually
+3. **Resource group creation fails**: Check Azure permissions
+4. **Web Apps not starting**: Check logs in Azure Portal
 
 ### Useful Commands
 
 ```bash
 # Check deployment status
-az deployment group show --resource-group Project_Team_05 --name main
+az deployment group list --resource-group Project_Team_05
 
-# View Container Apps logs
-az containerapp logs show --name app-dev-controltower --resource-group Project_Team_05
+# View Web App logs
+az webapp log tail --name app-dev-controltower --resource-group Project_Team_05
 
 # Check Event Hubs
 az eventhubs eventhub list --namespace-name fire-iot-eventhub-dev --resource-group Project_Team_05
@@ -173,15 +193,14 @@ az eventhubs eventhub list --namespace-name fire-iot-eventhub-dev --resource-gro
 - Use Azure Key Vault for secrets management
 - Enable private endpoints for database access
 - Configure network security groups
-- Enable Azure Defender for Containers
+- Enable Azure Defender for App Services
 
 ## 📈 Scaling
 
-The deployment includes auto-scaling configuration:
+The deployment uses Azure App Service with these settings:
 
-- **Min replicas**: 1
-- **Max replicas**: 3-5 (depending on service)
-- **CPU**: 0.5-1.0 cores
-- **Memory**: 1-2 GB
+- **App Service Plan**: Basic B1 (Linux)
+- **Auto-scaling**: Configured per service
+- **SSL**: HTTPS enabled by default
 
 Adjust these values in `main.bicep` for your needs.

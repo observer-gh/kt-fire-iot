@@ -21,10 +21,11 @@ param postgresAdminPassword string
 param eventHubNamespaceName string = 'fire-iot-eventhub-${environment}'
 
 // Variables
-var containerAppsEnvironmentName = 'fire-iot-${environment}'
+var containerAppsEnvironmentName = 'fire-iot-${environment}' // not used for web app
 var appNamePrefix = 'app-${environment}'
 var vnetName = 'fire-iot-vnet-${environment}'
-var subnetName = 'container-apps-subnet'
+var containerAppsSubnetName = 'container-apps-subnet'
+var postgresSubnetName = 'postgres-subnet'
 
 // Virtual Network
 resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
@@ -36,14 +37,20 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
     }
     subnets: [
       {
-        name: subnetName
+        name: containerAppsSubnetName
         properties: {
           addressPrefix: '10.0.1.0/24'
+        }
+      }
+      {
+        name: postgresSubnetName
+        properties: {
+          addressPrefix: '10.0.2.0/24'
           delegations: [
             {
               name: 'delegation'
               properties: {
-                serviceName: 'Microsoft.App/containerApps'
+                serviceName: 'Microsoft.DBforPostgreSQL/flexibleServers'
               }
             }
           ]
@@ -90,7 +97,7 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2023-01-01-preview' = 
   properties: {
     zoneRedundant: false
     isAutoInflateEnabled: false
-    maximumThroughputUnits: 1
+    maximumThroughputUnits: 0
   }
 }
 
@@ -154,7 +161,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-pr
       storageSizeGB: 32
     }
     network: {
-      delegatedSubnetResourceId: vnet.properties.subnets[0].id
+      delegatedSubnetResourceId: vnet.properties.subnets[1].id
       privateDnsZoneArmResourceId: privateDnsZone.id
     }
   }
@@ -195,276 +202,163 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
   }
 }
 
-// Container Apps Environment
-resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' = {
-  name: containerAppsEnvironmentName
+// App Service Plan
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
+  name: 'fire-iot-plan-${environment}'
   location: location
+  sku: {
+    name: 'B1'
+    tier: 'Basic'
+  }
   properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
-        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
-      }
-    }
-    vnetConfiguration: {
-      infrastructureSubnetId: vnet.properties.subnets[0].id
-    }
+    reserved: true  // Linux
   }
 }
 
-// ControlTower Container App
-resource controlTowerApp 'Microsoft.App/containerApps@2023-05-01' = {
+// ControlTower Web App
+resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
   name: '${appNamePrefix}-controltower'
   location: location
   properties: {
-    managedEnvironmentId: containerAppsEnvironment.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        allowInsecure: false
-      }
-      secrets: [
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/controltower:${imageTag}'
+      appSettings: [
         {
-          name: 'postgres-connection'
+          name: 'SPRING_PROFILES_ACTIVE'
+          value: 'cloud'
+        }
+        {
+          name: 'POSTGRES_URL'
           value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
         }
         {
-          name: 'eventhub-connection'
+          name: 'EVENTHUB_CONNECTION_STRING'
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
-      ]
-    }
-    template: {
-      containers: [
         {
-          name: 'controltower'
-          image: '${dockerHubOrg}/controltower:${imageTag}'
-          env: [
-            {
-              name: 'SPRING_PROFILES_ACTIVE'
-              value: 'cloud'
-            }
-            {
-              name: 'POSTGRES_URL'
-              secretRef: 'postgres-connection'
-            }
-            {
-              name: 'EVENTHUB_CONNECTION_STRING'
-              secretRef: 'eventhub-connection'
-            }
-            {
-              name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
-              value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
-            }
-          ]
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
+          name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+          value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
+        }
+        {
+          name: 'WEBSITES_PORT'
+          value: '8080'
         }
       ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 3
-      }
     }
   }
 }
 
-// FacilityManagement Container App
-resource facilityManagementApp 'Microsoft.App/containerApps@2023-05-01' = {
+// FacilityManagement Web App
+resource facilityManagementApp 'Microsoft.Web/sites@2023-01-01' = {
   name: '${appNamePrefix}-facilitymanagement'
   location: location
   properties: {
-    managedEnvironmentId: containerAppsEnvironment.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        allowInsecure: false
-      }
-      secrets: [
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/facilitymanagement:${imageTag}'
+      appSettings: [
         {
-          name: 'postgres-connection'
+          name: 'SPRING_PROFILES_ACTIVE'
+          value: 'cloud'
+        }
+        {
+          name: 'POSTGRES_URL'
           value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
         }
-      ]
-    }
-    template: {
-      containers: [
         {
-          name: 'facilitymanagement'
-          image: '${dockerHubOrg}/facilitymanagement:${imageTag}'
-          env: [
-            {
-              name: 'SPRING_PROFILES_ACTIVE'
-              value: 'cloud'
-            }
-            {
-              name: 'POSTGRES_URL'
-              secretRef: 'postgres-connection'
-            }
-            {
-              name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
-              value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
-            }
-          ]
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
+          name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+          value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
+        }
+        {
+          name: 'WEBSITES_PORT'
+          value: '8080'
         }
       ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 3
-      }
     }
   }
 }
 
-// DataLake Container App
-resource dataLakeApp 'Microsoft.App/containerApps@2023-05-01' = {
+// DataLake Web App
+resource dataLakeApp 'Microsoft.Web/sites@2023-01-01' = {
   name: '${appNamePrefix}-datalake'
   location: location
   properties: {
-    managedEnvironmentId: containerAppsEnvironment.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        allowInsecure: false
-      }
-      secrets: [
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/datalake:${imageTag}'
+      appSettings: [
         {
-          name: 'postgres-connection'
+          name: 'PROFILE'
+          value: 'cloud'
+        }
+        {
+          name: 'POSTGRES_URL'
           value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
         }
         {
-          name: 'redis-connection'
+          name: 'REDIS_URL'
           value: 'redis://${redisCache.properties.hostName}:6380'
         }
         {
-          name: 'eventhub-connection'
+          name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
-      ]
-    }
-    template: {
-      containers: [
         {
-          name: 'datalake'
-          image: '${dockerHubOrg}/datalake:${imageTag}'
-          env: [
-            {
-              name: 'PROFILE'
-              value: 'cloud'
-            }
-            {
-              name: 'POSTGRES_URL'
-              secretRef: 'postgres-connection'
-            }
-            {
-              name: 'REDIS_URL'
-              secretRef: 'redis-connection'
-            }
-            {
-              name: 'EVENTHUB_CONN'
-              secretRef: 'eventhub-connection'
-            }
-            {
-              name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
-              value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
-            }
-          ]
-          resources: {
-            cpu: json('1.0')
-            memory: '2Gi'
-          }
+          name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+          value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
+        }
+        {
+          name: 'WEBSITES_PORT'
+          value: '8080'
         }
       ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 5
-      }
     }
   }
 }
 
-// Alert Container App
-resource alertApp 'Microsoft.App/containerApps@2023-05-01' = {
+// Alert Web App
+resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
   name: '${appNamePrefix}-alert'
   location: location
   properties: {
-    managedEnvironmentId: containerAppsEnvironment.id
-    configuration: {
-      ingress: {
-        external: false  // Internal service
-        targetPort: 8080
-        allowInsecure: false
-      }
-      secrets: [
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/alert:${imageTag}'
+      appSettings: [
         {
-          name: 'postgres-connection'
+          name: 'PROFILE'
+          value: 'cloud'
+        }
+        {
+          name: 'POSTGRES_URL'
           value: 'postgresql://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/fireiot'
         }
         {
-          name: 'redis-connection'
+          name: 'REDIS_URL'
           value: 'redis://${redisCache.properties.hostName}:6380'
         }
         {
-          name: 'eventhub-connection'
+          name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
-      ]
-    }
-    template: {
-      containers: [
         {
-          name: 'alert'
-          image: '${dockerHubOrg}/alert:${imageTag}'
-          env: [
-            {
-              name: 'PROFILE'
-              value: 'cloud'
-            }
-            {
-              name: 'POSTGRES_URL'
-              secretRef: 'postgres-connection'
-            }
-            {
-              name: 'REDIS_URL'
-              secretRef: 'redis-connection'
-            }
-            {
-              name: 'EVENTHUB_CONN'
-              secretRef: 'eventhub-connection'
-            }
-            {
-              name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
-              value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
-            }
-          ]
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
-          }
+          name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+          value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
+        }
+        {
+          name: 'WEBSITES_PORT'
+          value: '8080'
         }
       ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 3
-      }
     }
   }
 }
 
 // Outputs
-output controlTowerUrl string = 'https://${controlTowerApp.properties.configuration.ingress.fqdn}'
-output facilityManagementUrl string = 'https://${facilityManagementApp.properties.configuration.ingress.fqdn}'
-output dataLakeUrl string = 'https://${dataLakeApp.properties.configuration.ingress.fqdn}'
+output controlTowerUrl string = 'https://${controlTowerApp.properties.defaultHostName}'
+output facilityManagementUrl string = 'https://${facilityManagementApp.properties.defaultHostName}'
+output dataLakeUrl string = 'https://${dataLakeApp.properties.defaultHostName}'
 output dockerHubOrg string = dockerHubOrg
 output eventHubNamespace string = eventHubNamespace.name
 output postgresServerFqdn string = postgresServer.properties.fullyQualifiedDomainName
