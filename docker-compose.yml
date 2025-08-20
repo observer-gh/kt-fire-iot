@@ -220,6 +220,14 @@ services:
     networks:
       - fire-iot-network
 
+  mock-server:
+    build: ./services/mock-server
+    container_name: fire-iot-mock-server
+    ports:
+      - "8001:8001"
+    networks:
+      - fire-iot-network
+
   # Frontend Service (start last)
   dashboard:
     build: ./dashboard
