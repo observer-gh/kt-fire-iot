@@ -1,0 +1,37 @@
+# ---- Maven build output ----
+/target/
+
+# ---- Gradle (만약 gradle-wrapper 포함 시) ----
+.gradle/
+/build/
+
+# ---- IDE specific files ----
+# IntelliJ
+.idea/
+*.iml
+out/
+
+# VS Code
+.vscode/
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# ---- OS specific ----
+.DS_Store
+Thumbs.db
+
+# ---- Logs ----
+*.log
+
+# ---- Environment files ----
+*.env
+
+# ---- Others ----
+# Spring Boot devtools reload files
+.spring-boot-devtools.properties
+
+# If you use Docker
+*.pid
