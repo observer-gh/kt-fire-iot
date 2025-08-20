@@ -148,9 +148,11 @@ services:
       - fire-iot-network
 
   # Backend Services (start after infrastructure)
-  datalake:
-    build: ./services/datalake
-    container_name: fire-iot-datalake
+  datalake-api:
+    build:
+      context: ./services/datalake
+      dockerfile: Dockerfile.api
+    container_name: fire-iot-datalake-api
     depends_on:
       kafka:
         condition: service_healthy
@@ -164,6 +166,57 @@ services:
       - POSTGRES_URL=postgresql://postgres:postgres@postgres-datalake:5432/datalake
       - REDIS_URL=redis://redis:6379
       - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC_ANOMALY=fire-iot.sensorDataAnomalyDetected
+      - KAFKA_TOPIC_DATA_SAVED=fire-iot.sensorDataSaved
+      - KAFKA_TOPIC_SENSOR_DATA=fire-iot.sensor-data
+      # Storage Configuration (MockStorage for local testing)
+      - STORAGE_TYPE=mock
+      - BATCH_SIZE=100
+      - BATCH_INTERVAL_MINUTES=10
+      - STORAGE_PATH=/app/local_storage
+      # Service Configuration
+      - SERVICE_PORT=8080
+      - SERVICE_HOST=0.0.0.0
+      # Logging
+      - LOG_LEVEL=INFO
+      # Legacy (for compatibility)
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - datalake_storage:/app/local_storage
+    networks:
+      - fire-iot-network
+
+  datalake-dashboard:
+    build:
+      context: ./services/datalake
+      dockerfile: Dockerfile.dashboard
+    container_name: fire-iot-datalake-dashboard
+    depends_on:
+      postgres-datalake:
+        condition: service_healthy
+      datalake-api:
+        condition: service_started
+    ports:
+      - "8501:8501"
+    environment:
+      # Database Configuration (for dashboard data access)
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres-datalake:5432/datalake
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_HOST=postgres-datalake
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=datalake
+      # API Service Configuration (for dashboard to access API)
+      - DATALAKE_API_URL=http://datalake-api:8080
+      - DATALAKE_API_HOST=datalake-api
+      - DATALAKE_API_PORT=8080
+      # Dashboard Configuration
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      # Logging
+      - LOG_LEVEL=INFO
+    volumes:
+      - datalake_storage:/app/local_storage
     networks:
       - fire-iot-network
 
@@ -228,22 +281,6 @@ services:
     networks:
       - fire-iot-network
 
-  # Frontend Service (start last)
-  dashboard:
-    build: ./dashboard
-    container_name: fire-iot-dashboard
-    depends_on:
-      datalake:
-        condition: service_started
-      controltower:
-        condition: service_started
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://datalake:8080
-    networks:
-      - fire-iot-network
-
 volumes:
   postgres_datalake_data:
     driver: local
@@ -252,6 +289,8 @@ volumes:
   postgres_facilitymanagement_data:
     driver: local
   redis_data:
+    driver: local
+  datalake_storage:
     driver: local
 
 networks:

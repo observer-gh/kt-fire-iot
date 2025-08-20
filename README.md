@@ -46,6 +46,9 @@ docker-compose up -d datalake controltower facilitymanagement alert
 
 # Frontend
 docker-compose up -d dashboard
+
+# DataLake real-time dashboard
+docker-compose up -d datalake-dashboard
 ```
 
 ### Build All
@@ -56,11 +59,15 @@ docker-compose build
 
 # Build specific service
 docker-compose build datalake
+
+# Build DataLake dashboard
+docker-compose build datalake-dashboard
 ```
 
 ## 📊 Access Points
 
 - **Dashboard**: http://localhost:3000
+- **DataLake Real-time Dashboard**: http://localhost:8501
 - **ControlTower API**: http://localhost:8082
 - **DataLake API**: http://localhost:8084
 - **FacilityManagement API**: http://localhost:8083
@@ -92,6 +99,7 @@ docker-compose up -d
 ```
 ├── dashboard/          # Next.js frontend
 ├── services/           # Backend microservices
+│   └── datalake/      # Data ingestion + Real-time dashboard
 ├── contracts/          # OpenAPI + event schemas
 ├── infra/              # Docker + Azure config
 ├── docker-compose.yml  # All services orchestration
@@ -107,6 +115,9 @@ cd dashboard && npm run dev
 # Backend dev
 cd services/datalake && python -m uvicorn app.main:app --reload
 cd services/controltower && ./mvnw spring-boot:run
+
+# DataLake dashboard dev
+cd services/datalake && streamlit run app/dashboard/main_dashboard.py --server.port=8501
 ```
 
 ## 🧹 Cleanup

@@ -8,41 +8,83 @@ class SensorType(str, Enum):
     TEMPERATURE = "temperature"
     HUMIDITY = "humidity"
     SMOKE = "smoke"
-    CO2 = "co2"
-    PRESSURE = "pressure"
+    CO = "co"
+    GAS = "gas"
 
 
 class AlertSeverity(str, Enum):
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
-    CRITICAL = "CRITICAL"
+    INFO = "INFO"
+    WARN = "WARN"
+    EMERGENCY = "EMERGENCY"
 
 
 class RawSensorData(BaseModel):
     """Raw data received from external API"""
-    station_id: str
-    sensor_type: SensorType
-    value: float
-    timestamp: datetime
+    equipment_id: str
+    facility_id: Optional[str] = None
+    equipment_location: Optional[str] = None
+    measured_at: datetime
+    temperature: Optional[float] = None
+    humidity: Optional[float] = None
+    smoke_density: Optional[float] = None
+    co_level: Optional[float] = None
+    gas_level: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = None
 
 
 class ProcessedSensorData(BaseModel):
     """Cleaned and processed sensor data"""
-    station_id: str
-    sensor_type: SensorType
-    value: float
-    timestamp: datetime
-    is_alert: bool = False
-    severity: Optional[AlertSeverity] = None
-    processed_at: datetime = Field(default_factory=datetime.utcnow)
+    equipment_id: str
+    facility_id: Optional[str] = None
+    equipment_location: Optional[str] = None
+    measured_at: datetime
+    ingested_at: datetime = Field(default_factory=datetime.utcnow)
+    temperature: Optional[float] = None
+    humidity: Optional[float] = None
+    smoke_density: Optional[float] = None
+    co_level: Optional[float] = None
+    gas_level: Optional[float] = None
+    is_anomaly: bool = False
+    anomaly_metric: Optional[str] = None
+    anomaly_value: Optional[float] = None
+    anomaly_threshold: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = None
+
+
+class SensorDataSavedEvent(BaseModel):
+    """Event sent to ControlTower when data is saved to storage"""
+    version: int = 1
+    event_id: str
+    equipment_id: str
+    facility_id: Optional[str] = None
+    equipment_location: Optional[str] = None
+    measured_at: datetime
+    temperature: Optional[float] = None
+    humidity: Optional[float] = None
+    smoke_density: Optional[float] = None
+    co_level: Optional[float] = None
+    gas_level: Optional[float] = None
+    ingested_at: datetime
+
+
+class SensorDataAnomalyDetectedEvent(BaseModel):
+    """Event sent to ControlTower when anomaly is detected"""
+    version: int = 1
+    event_id: str
+    equipment_id: str
+    facility_id: Optional[str] = None
+    metric: str
+    value: float
+    threshold: float
+    rule_id: Optional[str] = None
+    measured_at: datetime
+    detected_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class DataLakeEvent(BaseModel):
     """Event published to Kafka"""
     event_type: str
-    data: ProcessedSensorData
+    data: Dict[str, Any]
     source: str = "datalake"
     version: str = "1.0.0"
+    timestamp: datetime = Field(default_factory=datetime.utcnow)

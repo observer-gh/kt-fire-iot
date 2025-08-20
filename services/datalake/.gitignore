@@ -1,0 +1,105 @@
+# DataLake Service Specific Gitignore
+.vscode/
+# Python
+__pycache__/
+**/__pycache__/
+app/__pycache__/
+tests/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs
+*.log
+test.log
+logs/
+
+# Test coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.tox/
+
+# IDE and editor files
+.vscode/
+.cursor/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# DataLake specific
+local_storage/
+storage/
+*.json
+*.csv
+*.parquet
+*.avro
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Configuration overrides
+config.local.py
+settings.local.py
+
+# Dependencies (if not using requirements.txt)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build artifacts
+*.pyc
+*.pyo
+*.pyd
+**/__pycache__/
+*.so
+*.dll
+*.dylib
+
+# Documentation builds
+docs/_build/
+site/
+
+# Jupyter notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# Backup files
+*.bak
+*.backup
+*~

@@ -12,11 +12,11 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY app/ ./app/
-
 # Copy dashboard configuration
 COPY .streamlit/ ./.streamlit/
+
+# Copy app directory (contains dashboard code)
+COPY app/ ./app/
 
 # Copy dashboard runner script
 COPY run_dashboard.py .
@@ -25,12 +25,12 @@ COPY run_dashboard.py .
 RUN mkdir -p /app/local_storage && \
     chmod 755 /app/local_storage
 
-# Expose ports for both API and dashboard
-EXPOSE 8080 8501
+# Expose only dashboard port
+EXPOSE 8501
 
-# Health check
+# Health check for dashboard
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/healthz || exit 1
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
-# Run the application (API service)
-CMD ["python", "-m", "app.main"]
+# Run the dashboard
+CMD ["streamlit", "run", "run_dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
