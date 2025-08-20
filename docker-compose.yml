@@ -281,22 +281,6 @@ services:
     networks:
       - fire-iot-network
 
-  # Frontend Service (start last)
-  dashboard:
-    build: ./dashboard
-    container_name: fire-iot-dashboard
-    depends_on:
-      datalake:
-        condition: service_started
-      controltower:
-        condition: service_started
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://datalake:8080
-    networks:
-      - fire-iot-network
-
 volumes:
   postgres_datalake_data:
     driver: local
