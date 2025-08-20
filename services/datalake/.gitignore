@@ -2,7 +2,9 @@
 .vscode/
 # Python
 __pycache__/
+**/__pycache__/
 app/__pycache__/
+tests/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -84,7 +86,7 @@ yarn.lock
 *.pyc
 *.pyo
 *.pyd
-__pycache__/
+**/__pycache__/
 *.so
 *.dll
 *.dylib
