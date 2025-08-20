@@ -19,25 +19,6 @@ services:
     networks:
       - fire-iot-network
 
-  postgres-controltower:
-    image: postgres:16-alpine
-    container_name: fire-iot-postgres-controltower
-    environment:
-      POSTGRES_DB: controltower
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5434:5432"
-    volumes:
-      - postgres_controltower_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d controltower"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - fire-iot-network
-
   postgres-facilitymanagement:
     image: postgres:16-alpine
     container_name: fire-iot-postgres-facilitymanagement
@@ -135,8 +116,6 @@ services:
     depends_on:
       postgres-datalake:
         condition: service_healthy
-      postgres-controltower:
-        condition: service_healthy
       postgres-facilitymanagement:
         condition: service_healthy
     environment:
@@ -179,8 +158,6 @@ services:
       - SERVICE_HOST=0.0.0.0
       # Logging
       - LOG_LEVEL=INFO
-      # Legacy (for compatibility)
-      - REDIS_URL=redis://redis:6379
     volumes:
       - datalake_storage:/app/local_storage
     networks:
@@ -224,16 +201,11 @@ services:
     build: ./services/controltower
     container_name: fire-iot-controltower
     depends_on:
-      postgres-controltower:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     ports:
       - "8082:8080"
     environment:
-      - POSTGRES_URL=jdbc:postgresql://postgres-controltower:5432/controltower
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     networks:
       - fire-iot-network
@@ -283,8 +255,6 @@ services:
 
 volumes:
   postgres_datalake_data:
-    driver: local
-  postgres_controltower_data:
     driver: local
   postgres_facilitymanagement_data:
     driver: local
