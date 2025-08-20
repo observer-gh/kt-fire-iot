@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Kafka settings
     kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "kafka:29092")
     kafka_topic_anomaly: str = os.getenv("KAFKA_TOPIC_ANOMALY", "fire-iot.anomaly-detected")
-    kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "fire-iot.data-saved")
+    kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "fire-iot.sensorDataSaved")
     kafka_topic_sensor_data: str = os.getenv("KAFKA_TOPIC_SENSOR_DATA", "fire-iot.sensor-data")
     
     # Storage settings

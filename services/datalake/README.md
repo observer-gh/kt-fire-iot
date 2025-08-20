@@ -159,8 +159,8 @@ The DataLake service now includes Redis caching for improved performance:
 
 ### Kafka Topics
 
-- `fire-iot.anomaly-detected` - Anomaly detection events
-- `fire-iot.data-saved` - Data saved to storage events
+- `fire-iot.sensorDataAnomalyDetected` - Anomaly detection events
+- `fire-iot.sensorDataSaved` - Data saved to storage events
 - `fire-iot.sensor-data` - Normal sensor readings
 
 ## 🗄️ Storage Types

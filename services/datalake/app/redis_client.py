@@ -92,7 +92,18 @@ class RedisClient:
         if not self.is_connected():
             return None
         try:
-            return self.client.get(key)
+            value = self.client.get(key)
+            
+            # JSON 문자열인 경우 자동 파싱
+            if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
+                try:
+                    import json
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    # JSON 파싱 실패 시 원본 값 반환
+                    pass
+            
+            return value
         except Exception as e:
             logger.error(f"Redis GET error: {e}")
             return None
@@ -102,6 +113,10 @@ class RedisClient:
         if not self.is_connected():
             return False
         try:
+            # 딕셔너리나 리스트인 경우 JSON으로 직렬화
+            if isinstance(value, (dict, list)):
+                import json
+                value = json.dumps(value)
             return self.client.set(key, value, ex=ex)
         except Exception as e:
             logger.error(f"Redis SET error: {e}")

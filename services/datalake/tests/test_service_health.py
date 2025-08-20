@@ -122,7 +122,7 @@ class TestServiceHealth:
             topics = admin_client.list_topics()
             
             # 필수 토픽 확인
-            expected_topics = ['fire-iot.anomaly-detected', 'fire-iot.data-saved']
+            expected_topics = ['fire-iot.anomaly-detected', 'fire-iot.sensorDataSaved']
             
             for expected_topic in expected_topics:
                 assert expected_topic in topics, f"필수 토픽 {expected_topic}이 없음"

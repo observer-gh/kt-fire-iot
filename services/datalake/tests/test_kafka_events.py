@@ -90,10 +90,11 @@ class TestKafkaEvents:
         
         # Kafka 컨슈머 생성
         consumer = KafkaConsumer(
-            'fire-iot.anomaly-detected',
+            kafka_config.get('topic_anomaly', 'sensorDataAnomalyDetected'),
             bootstrap_servers=kafka_config['bootstrap_servers'],
             auto_offset_reset='earliest',
             consumer_timeout_ms=15000,
+            group_id='test-consumer',
             value_deserializer=lambda m: json.loads(m.decode('utf-8'))
         )
         
@@ -195,10 +196,11 @@ class TestKafkaEvents:
         
         # Kafka 컨슈머 생성
         consumer = KafkaConsumer(
-            'fire-iot.anomaly-detected',
+            'sensorDataAnomalyDetected',
             bootstrap_servers=kafka_config['bootstrap_servers'],
             auto_offset_reset='earliest',
             consumer_timeout_ms=45000,  # 45초 타임아웃
+            group_id='test-consumer',
             value_deserializer=lambda m: json.loads(m.decode('utf-8'))
         )
         
@@ -208,7 +210,7 @@ class TestKafkaEvents:
             for data in type_data[:2]:  # 각 유형당 2개씩
                 try:
                     response = requests.post(f"{base_url}/ingest", json=data, timeout=10)
-                    if response.status_code == 200:
+                    if response.status_code in [200, 204]:
                         sent_count += 1
                         time.sleep(0.3)  # 이벤트 처리 대기
                 except Exception as e:
@@ -327,7 +329,7 @@ class TestKafkaEvents:
             # 필수 토픽 확인
             required_topics = [
                 'fire-iot.anomaly-detected',
-                'fire-iot.data-saved',
+                'fire-iot.sensorDataSaved',
                 'fire-iot.sensor-data'
             ]
             

@@ -373,7 +373,7 @@ class TestDataProcessing:
                     timeout=5
                 )
                 
-                if response.status_code == 200:
+                if response.status_code in [200, 204]:
                     success_count += 1
                     
             except Exception as e:

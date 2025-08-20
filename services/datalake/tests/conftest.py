@@ -15,19 +15,48 @@ from datetime import datetime, timedelta
 
 # 테스트 실행 전 환경변수 설정
 def setup_test_environment():
-    """테스트 환경 설정"""
+    """테스트 환경 설정 - 호스트 포트로 통일"""
+    # PostgreSQL 설정 (호스트 포트 5433)
     os.environ["POSTGRES_URL"] = "postgresql://postgres:postgres@localhost:5433/datalake"
     os.environ["POSTGRES_HOST"] = "localhost"
     os.environ["POSTGRES_PORT"] = "5433"
     os.environ["POSTGRES_DB"] = "datalake"
     os.environ["POSTGRES_USER"] = "postgres"
     os.environ["POSTGRES_PASSWORD"] = "postgres"
+    
+    # Redis 설정 (호스트 포트 6379)
     os.environ["REDIS_URL"] = "redis://localhost:6379"
+    
+    # Kafka 설정 (호스트 포트 9092)
     os.environ["KAFKA_BROKERS"] = "localhost:9092"
+    os.environ["KAFKA_TOPIC_ANOMALY"] = "fire-iot.sensorDataAnomalyDetected"
+    os.environ["KAFKA_TOPIC_DATA_SAVED"] = "fire-iot.sensorDataSaved"
+    os.environ["KAFKA_TOPIC_SENSOR_DATA"] = "fire-iot.sensor-data"
+    
+    # 기타 설정
     os.environ["STORAGE_TYPE"] = "mock"
+    os.environ["LOG_LEVEL"] = "INFO"
 
 # 테스트 환경 설정 실행
 setup_test_environment()
+
+def parse_api_response(response_text):
+    """API 응답 파싱 - 이중 JSON 인코딩 처리"""
+    try:
+        # 먼저 JSON 파싱 시도
+        parsed = json.loads(response_text)
+        
+        # 만약 파싱된 결과가 문자열이고 JSON 형태라면 다시 파싱
+        if isinstance(parsed, str) and (parsed.startswith('{') or parsed.startswith('[')):
+            try:
+                return json.loads(parsed)
+            except json.JSONDecodeError:
+                pass
+        
+        return parsed
+    except json.JSONDecodeError:
+        # JSON 파싱 실패 시 원본 반환
+        return response_text
 
 # 테스트 설정
 TEST_CONFIG = {
@@ -45,7 +74,10 @@ TEST_CONFIG = {
         'port': 6379
     },
     'kafka_config': {
-        'bootstrap_servers': 'localhost:9092'
+        'bootstrap_servers': 'localhost:9092',
+        'topic_anomaly': 'fire-iot.sensorDataAnomalyDetected',
+        'topic_data_saved': 'fire-iot.sensorDataSaved',
+        'topic_sensor_data': 'fire-iot.sensor-data'
     }
 }
 

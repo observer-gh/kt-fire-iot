@@ -61,20 +61,20 @@ class TestDashboard:
         """서비스 통계 API 동작 테스트"""
         try:
             response = requests.get(f"{api_url}/stats", timeout=10)
-            
+    
             assert response.status_code == 200, f"서비스 통계 API 실패: {response.status_code}"
-            
+    
             stats = response.json()
-            
+    
             # 필수 필드 확인 (실제 API 응답 구조에 맞춤)
             required_fields = [
                 'storage_type', 'batch_size', 'batch_interval_minutes',
                 'realtime_records', 'active_alerts'
             ]
-            
+    
             for field in required_fields:
                 assert field in stats, f"필수 필드 {field}가 없음"
-            
+    
             # 데이터 타입 확인
             assert isinstance(stats.get('storage_type'), str), "storage_type은 문자열이어야 함"
             assert isinstance(stats.get('batch_size'), int), "batch_size는 정수여야 함"
