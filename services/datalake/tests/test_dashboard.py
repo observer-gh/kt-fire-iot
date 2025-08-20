@@ -57,10 +57,10 @@ class TestDashboard:
         print("✅ 대시보드 API 엔드포인트 확인 완료")
     
     @pytest.mark.integration
-    def test_service_stats_api(self, base_url):
+    def test_service_stats_api(self, api_url):
         """서비스 통계 API 동작 테스트"""
         try:
-            response = requests.get(f"{base_url}/stats", timeout=10)
+            response = requests.get(f"{api_url}/stats", timeout=10)
             
             assert response.status_code == 200, f"서비스 통계 API 실패: {response.status_code}"
             
@@ -87,11 +87,11 @@ class TestDashboard:
             pytest.fail(f"서비스 통계 API 테스트 실패: {e}")
     
     @pytest.mark.integration
-    def test_realtime_data_availability(self, base_url):
+    def test_realtime_data_availability(self, api_url):
         """실시간 데이터 가용성 테스트"""
         try:
             # 초기 통계 확인
-            initial_response = requests.get(f"{base_url}/stats", timeout=10)
+            initial_response = requests.get(f"{api_url}/stats", timeout=10)
             assert initial_response.status_code == 200, "초기 통계 조회 실패"
             
             initial_stats = initial_response.json()

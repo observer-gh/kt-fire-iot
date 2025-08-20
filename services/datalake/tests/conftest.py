@@ -14,12 +14,12 @@ from datetime import datetime, timedelta
 
 # 테스트 설정
 TEST_CONFIG = {
-    'base_url': 'http://localhost:8084',
+    'api_url': 'http://localhost:8084',
     'dashboard_url': 'http://localhost:8501',
     'db_config': {
         'host': 'localhost',
         'port': 5433,
-        'database': 'core',
+        'database': 'datalake',  # docker-compose에서 설정한 데이터베이스명
         'user': 'postgres',
         'password': 'postgres'
     },
@@ -38,9 +38,14 @@ def test_config():
     return TEST_CONFIG
 
 @pytest.fixture(scope="session")
-def base_url():
+def api_url():
     """DataLake API 기본 URL"""
-    return TEST_CONFIG['base_url']
+    return TEST_CONFIG['api_url']
+
+@pytest.fixture(scope="session")
+def base_url():
+    """DataLake API 기본 URL (하위 호환성)"""
+    return TEST_CONFIG['api_url']
 
 @pytest.fixture(scope="session")
 def dashboard_url():

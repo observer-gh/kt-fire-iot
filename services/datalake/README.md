@@ -11,29 +11,34 @@ Data ingestion and streaming processing service for IoT fire monitoring.
 docker-compose up -d
 
 # Start just DataLake and dependencies
-docker-compose up -d postgres redis kafka datalake
+docker-compose up -d postgres redis kafka datalake-api datalake-dashboard
 
-# Start DataLake dashboard
+# Start DataLake API only
+docker-compose up -d datalake-api
+
+# Start DataLake dashboard only
 docker-compose up -d datalake-dashboard
 ```
 
 ### Manual Build & Run
 
 ```bash
-# Build
-docker build -t fire-iot-datalake .
+# Build API service
+docker build -f Dockerfile.api -t fire-iot-datalake-api .
 
-# Run with dependencies
-docker run -d --name datalake --network fire-iot-network -p 8084:8080 \
+# Build dashboard service
+docker build -f Dockerfile.dashboard -t fire-iot-datalake-dashboard .
+
+# Run API service with dependencies
+docker run -d --name datalake-api --network fire-iot-network -p 8084:8080 \
   -e POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/core \
   -e REDIS_URL=redis://redis:6379 \
   -e KAFKA_BROKERS=kafka:29092 \
   -e STORAGE_TYPE=mock \
   -e BATCH_SIZE=100 \
-  fire-iot-datalake
+  fire-iot-datalake-api
 
-# Build and run dashboard
-docker build -f Dockerfile.dashboard -t fire-iot-datalake-dashboard .
+# Run dashboard service
 docker run -d --name datalake-dashboard --network fire-iot-network -p 8501:8501 \
   -e POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/core \
   fire-iot-datalake-dashboard
@@ -90,6 +95,20 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501
 
 # Via Script
 ./start_dashboard.sh
+```
+
+### Access API
+
+```bash
+# Via Docker Compose
+docker-compose up -d datalake-api
+# Then access http://localhost:8084
+
+# Via Local Development
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+
+# Health check
+curl http://localhost:8084/healthz
 ```
 
 ### Dashboard Controls
@@ -289,9 +308,30 @@ For complete infrastructure testing, see `DOCKER_COMPOSE_TEST.md`:
 # Start entire infrastructure
 docker-compose up -d
 
-# Test DataLake service
+# Test DataLake API service
 curl http://localhost:8084/healthz
 curl http://localhost:8084/stats
+
+# Test DataLake dashboard
+# Open http://localhost:8501 in your browser
+```
+
+## 🚀 Azure App Container Service 배포
+
+Azure App Container Service의 포트 제약사항을 고려하여 API와 대시보드를 분리하여 배포할 수 있습니다.
+
+### API 서비스 배포
+
+```bash
+chmod +x deploy-api.sh
+./deploy-api.sh <resource-group> <app-name>
+```
+
+### 대시보드 서비스 배포
+
+```bash
+chmod +x deploy-dashboard.sh
+./deploy-dashboard.sh <resource-group> <app-name>
 ```
 
 ## 📊 Monitoring

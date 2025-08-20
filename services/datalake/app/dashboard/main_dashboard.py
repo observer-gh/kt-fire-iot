@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.graph_objects as go
 
-from .data_manager import FireSensorDataManager
-from .alert_manager import AlertManager
-from .charts import SensorCharts
+from app.dashboard.data_manager import FireSensorDataManager
+from app.dashboard.alert_manager import AlertManager
+from app.dashboard.charts import SensorCharts
 
 # Page configuration
 st.set_page_config(

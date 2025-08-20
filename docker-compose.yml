@@ -148,9 +148,11 @@ services:
       - fire-iot-network
 
   # Backend Services (start after infrastructure)
-  datalake:
-    build: ./services/datalake
-    container_name: fire-iot-datalake
+  datalake-api:
+    build:
+      context: ./services/datalake
+      dockerfile: Dockerfile.api
+    container_name: fire-iot-datalake-api
     depends_on:
       kafka:
         condition: service_healthy
@@ -192,7 +194,7 @@ services:
     depends_on:
       postgres-datalake:
         condition: service_healthy
-      datalake:
+      datalake-api:
         condition: service_started
     ports:
       - "8501:8501"
@@ -204,11 +206,17 @@ services:
       - POSTGRES_HOST=postgres-datalake
       - POSTGRES_PORT=5432
       - POSTGRES_DB=datalake
+      # API Service Configuration (for dashboard to access API)
+      - DATALAKE_API_URL=http://datalake-api:8080
+      - DATALAKE_API_HOST=datalake-api
+      - DATALAKE_API_PORT=8080
       # Dashboard Configuration
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       # Logging
       - LOG_LEVEL=INFO
+    volumes:
+      - datalake_storage:/app/local_storage
     networks:
       - fire-iot-network
 
