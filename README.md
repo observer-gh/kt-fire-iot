@@ -1,86 +1,215 @@
 # Fire IoT MSA
 
-Full-stack microservices for IoT fire monitoring with real-time data processing, alert management, and dashboard.
+IoT fire monitoring system with real-time data processing and alerts.
 
-## 🏗️ Architecture
+## Service Links
 
-- **Dashboard** (Next.js + Tailwind) - Frontend dashboard
-- **ControlTower** (Java Spring Boot) - Central hub APIs
-- **FacilityManagement** (Java Spring Boot) - Equipment data
-- **DataLake** (Python FastAPI) - Data ingestion
-- **Alert** (Python Worker) - Alert processing
+### Core Services
 
-## 🚀 Quick Start
+- **[DataLake](./services/datalake/README.md)** - Gets sensor data, finds problems, shows dashboard
+- **[ControlTower](./services/controltower/README.md)** - Main service that gives data to other services
+- **[FacilityManagement](./services/facilitymanagement/README.md)** - Manages equipment and maintenance info
+- **[Alert](./services/alert/README.md)** - Sends alerts when problems found
+- **[MockServer](./services/mock-server/README.md)** - Makes fake data for testing
 
-### Prerequisites
+## Architecture Diagram
 
-```bash
-docker-compose
-node 18+ (for local dashboard dev)
-java 21+ (for local backend dev)
-python 3.11+ (for local backend dev)
+![Arc](./architecture.jpg)
+
+## ADR (Architecture Decision Records)
+
+### ADR-001: Use Kafka for Service Communication
+
+- **Problem**: Services need to talk to each other
+- **Decision**: Use Kafka for messages between services
+- **Reason**: Kafka has seamless integration with Azure Event hub.
+
+### ADR-002: Separate Databases per Service
+
+- **Problem**: Where to store data for each service
+- **Decision**: Each service has its own PostgreSQL database if needed
+- **Reason**: Services can change data without affecting others
+
+## Data Architecture
+
+![erd](./erd.png)
+
+### Database Tables (PostgreSQL)
+
+**DataLake Database:**
+
+```
+realtime
+- id (PK)
+- equipment_id
+- facility_id
+- temperature, humidity, smoke_density, co_level, gas_level
+- measured_at
+- created_at
+
+alert
+- id (PK)
+- equipment_id
+- alert_type (WARNING, EMERGENCY)
+- message
+- created_at
 ```
 
-### Start Everything (Recommended)
+**FacilityManagement Database:**
+
+```
+equipment
+- id (PK)
+- name, type, location
+- status (ACTIVE, INACTIVE, MAINTENANCE)
+- created_at
+
+maintenance
+- id (PK)
+- equipment_id (FK)
+- type, description
+- scheduled_date, completed_date
+- status (SCHEDULED, IN_PROGRESS, COMPLETED)
+```
+
+### Kafka Topics
+
+```
+dataLake.sensorDataAnomalyDetected
+- equipment_id, facility_id, alert_type, message, timestamp
+
+dataLake.sensorDataSaved
+- equipment_id, facility_id, data, timestamp
+
+alert.alertSendFail
+- alert_id, message, severity, timestamp
+
+```
+
+## Error Handling
+
+### Strategy 1: Simple Retry
+
+- If service call fails, try again 3 times
+- Wait 1 second between tries
+- If still fails, log error and stop
+
+### Strategy 2: Circuit Breaker
+
+- If service fails 5 times in 1 minute, stop trying for 30 seconds
+- Let service recover, then try again
+- Prevents system overload
+
+### Implementation Examples
+
+### Health Checks
+
+Each service has `/healthz` endpoint:
+
+```
+GET /healthz
+Response: {"status": "healthy", "timestamp": "2024-01-01T12:00:00Z"}
+```
+
+### Error Logging
+
+- All errors logged with timestamp and service name
+- Critical errors sent to monitoring system
+- Database connection errors trigger retry
+
+## MSA Board
+
+### Service Dependencies
+
+```
+DataLake needs:
+- PostgreSQL (store data)
+- Redis (cache)
+- Kafka (send messages)
+- Mock Server (get data)
+
+ControlTower needs:
+- Kafka (get messages)
+- No database (read-only)
+
+FacilityManagement needs:
+- PostgreSQL (store equipment data)
+
+Alert needs:
+- Kafka (get messages)
+- Redis (deduplication)
+- Slack (send notifications)
+
+Mock Server needs:
+- Nothing (standalone)
+```
+
+### Communication Patterns
+
+```
+DataLake → Kafka → ControlTower (sensor data)
+DataLake → Kafka → Alert (anomaly alerts)
+ControlTower → Kafka → Alert (warning alerts)
+FacilityManagement → Kafka → Alert (maintenance alerts)
+```
+
+## Quick Start
+
+### Start Everything
 
 ```bash
-# Start all services with proper dependencies
 docker-compose up -d
+```
 
-# Check status
+### Check Status
+
+```bash
 docker-compose ps
 ```
 
-### Start Infrastructure Only
+### Access Points
+
+- **DataLake Dashboard**: http://localhost:8501
+- **ControlTower API**: http://localhost:8082
+- **FacilityManagement API**: http://localhost:8083
+- **Mock Server**: http://localhost:8001
+- **Kafka UI**: http://localhost:8090
+
+### Stop Everything
 
 ```bash
-# Start just infrastructure (PostgreSQL, Redis, Kafka)
-docker-compose up -d postgres redis zookeeper kafka kafka-ui pgadmin
+docker-compose down
 ```
 
-### Start Services Individually
+## Development
+
+### Build Services
 
 ```bash
-# Backend services
-docker-compose up -d datalake controltower facilitymanagement alert
-
-# Frontend
-docker-compose up -d dashboard
-
-# DataLake real-time dashboard
-docker-compose up -d datalake-dashboard
-```
-
-### Build All
-
-```bash
-# Build all services
+# Build all
 docker-compose build
 
 # Build specific service
 docker-compose build datalake
-
-# Build DataLake dashboard
-docker-compose build datalake-dashboard
 ```
 
-## 📊 Access Points
+### Local Development
 
-- **Dashboard**: http://localhost:3000
-- **DataLake Real-time Dashboard**: http://localhost:8501
-- **ControlTower API**: http://localhost:8082
-- **DataLake API**: http://localhost:8084
-- **FacilityManagement API**: http://localhost:8083
-- **Kafka UI**: http://localhost:8090
-- **PgAdmin**: http://localhost:8091
+```bash
+# DataLake
+cd services/datalake
+python -m uvicorn app.main:app --reload
 
-## 🗄️ Databases
+# ControlTower
+cd services/controltower
+./mvnw spring-boot:run
 
-- **DataLake DB**: localhost:5433/datalake
-- **ControlTower DB**: localhost:5434/controltower
-- **FacilityManagement DB**: localhost:5435/facilitymanagement
+# FacilityManagement
+cd services/facilitymanagement
+./mvnw spring-boot:run
+```
 
-## 🚀 Deploy
+## Deployment
 
 ### Local
 
@@ -91,44 +220,6 @@ docker-compose up -d
 ### Azure
 
 ```bash
-./infra/aca/deploy-bicep.sh dev your-org v1.0.0
-```
-
-## 📁 Structure
-
-```
-├── dashboard/          # Next.js frontend
-├── services/           # Backend microservices
-│   └── datalake/      # Data ingestion + Real-time dashboard
-├── contracts/          # OpenAPI + event schemas
-├── infra/              # Docker + Azure config
-├── docker-compose.yml  # All services orchestration
-└── test-setup.sh       # Testing
-```
-
-## 🔧 Development
-
-```bash
-# Frontend dev
-cd dashboard && npm run dev
-
-# Backend dev
-cd services/datalake && python -m uvicorn app.main:app --reload
-cd services/controltower && ./mvnw spring-boot:run
-
-# DataLake dashboard dev
-cd services/datalake && streamlit run app/dashboard/main_dashboard.py --server.port=8501
-```
-
-## 🧹 Cleanup
-
-```bash
-# Stop all services
-docker-compose down
-
-# Remove volumes (data)
-docker-compose down -v
-
-# Remove images
-docker-compose down --rmi all
+cd infra/aca
+./deploy.sh
 ```
