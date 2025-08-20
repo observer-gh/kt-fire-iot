@@ -15,6 +15,8 @@ from .scheduler import BatchScheduler
 from .database import create_tables
 from .config import settings
 from .redis_client import redis_client
+from .mock_server_client import MockServerClient
+from .mock_data_scheduler import MockDataScheduler
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.log_level))
@@ -39,6 +41,7 @@ app.add_middleware(
 
 # Initialize services based on configuration
 kafka_publisher = KafkaPublisher()
+mock_server_client = MockServerClient()
 
 # Select storage service based on configuration
 if settings.storage_type == "mock":
@@ -49,16 +52,19 @@ else:
     logger.info(f"Using StorageService for production at: {settings.storage_path}")
 
 batch_scheduler = BatchScheduler(storage_service, kafka_publisher)
+mock_data_scheduler = MockDataScheduler(storage_service, kafka_publisher)
 
 @app.on_event("startup")
 async def startup_event():
-    """Startup event - start batch scheduler"""
+    """Startup event - start batch scheduler and mock data scheduler"""
     await batch_scheduler.start()
+    await mock_data_scheduler.start()
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Shutdown event - stop batch scheduler and cleanup"""
+    """Shutdown event - stop schedulers and cleanup"""
     await batch_scheduler.stop()
+    await mock_data_scheduler.stop()
     kafka_publisher.close()
     redis_client.close()
 
@@ -66,10 +72,15 @@ async def shutdown_event():
 async def health_check():
     """Health check endpoint with Redis status"""
     redis_status = "healthy" if redis_client.is_connected() else "unhealthy"
+    
+    # Mock Server 상태도 확인
+    mock_server_status = "healthy" if await mock_server_client.health_check() else "unhealthy"
+    
     return {
         "status": "healthy", 
         "service": "datalake",
         "redis": redis_status,
+        "mock_server": mock_server_status,
         "storage_type": settings.storage_type
     }
 
@@ -109,30 +120,243 @@ async def root():
 
 @app.post("/ingest")
 async def ingest_sensor_data(
+    background_tasks: BackgroundTasks
+):
+    """Mock Server에서 실시간 데이터를 가져와서 처리하고 이상치를 탐지합니다."""
+    try:
+        logger.info("Mock Server에서 실시간 데이터를 가져오는 중...")
+        
+        # Mock Server에서 데이터 가져오기
+        raw_data_list = await mock_server_client.get_realtime_data()
+        
+        if not raw_data_list:
+            logger.warning("Mock Server에서 데이터를 받지 못했습니다.")
+            return Response(status_code=204)
+        
+        logger.info(f"Mock Server에서 {len(raw_data_list)}개의 데이터를 받았습니다.")
+        
+        # 각 데이터를 처리하고 이상치 탐지
+        anomaly_detected = False
+        anomaly_data = None
+        
+        for raw_data in raw_data_list:
+            try:
+                # 데이터 처리
+                processed_data = DataProcessor.process_sensor_data(raw_data)
+                
+                # 데이터베이스에 저장
+                save_success = storage_service.save_sensor_data(processed_data)
+                if not save_success:
+                    logger.error(f"데이터 저장 실패: {raw_data.equipment_id}")
+                    continue
+                
+                # 이상치 탐지 및 이벤트 발행
+                if processed_data.is_anomaly:
+                    anomaly_detected = True
+                    anomaly_data = processed_data
+                    
+                    background_tasks.add_task(
+                        kafka_publisher.publish_anomaly_detected, 
+                        processed_data
+                    )
+                    logger.info(f"🚨 이상치 탐지됨: {processed_data.equipment_id} - {processed_data.anomaly_metric} = {processed_data.anomaly_value}")
+                
+                # 센서 데이터 이벤트 발행
+                background_tasks.add_task(
+                    kafka_publisher.publish_sensor_data, 
+                    processed_data
+                )
+                
+            except Exception as e:
+                logger.error(f"개별 데이터 처리 오류 ({raw_data.equipment_id}): {e}")
+                continue
+        
+        # 이상치가 있는 경우에만 응답 반환
+        if anomaly_detected and anomaly_data:
+            response_data = {
+                "version": 1,
+                "event_id": str(uuid.uuid4()),
+                "equipment_id": anomaly_data.equipment_id,
+                "facility_id": anomaly_data.facility_id,
+                "metric": anomaly_data.anomaly_metric,
+                "value": anomaly_data.anomaly_value,
+                "threshold": anomaly_data.anomaly_threshold,
+                "rule_id": None,
+                "measured_at": anomaly_data.measured_at,
+                "detected_at": anomaly_data.ingested_at,
+                "total_processed": len(raw_data_list),
+                "anomalies_found": 1
+            }
+            logger.info(f"📤 이상치 응답 반환: {response_data}")
+            return response_data
+        else:
+            # 정상 데이터인 경우 204 No Content 반환
+            logger.info(f"✅ 정상 데이터 처리 완료: 총 {len(raw_data_list)}개 처리됨")
+            return Response(status_code=204)
+
+    except Exception as e:
+        logger.error(f"Mock Server 데이터 처리 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"Mock Server 데이터 처리 실패: {str(e)}")
+
+@app.post("/ingest/stream")
+async def ingest_stream_data(
+    background_tasks: BackgroundTasks
+):
+    """Mock Server에서 스트리밍 데이터를 가져와서 처리합니다."""
+    try:
+        logger.info("Mock Server에서 스트리밍 데이터를 가져오는 중...")
+        
+        # Mock Server에서 스트리밍 데이터 가져오기
+        raw_data_list = await mock_server_client.get_stream_data()
+        
+        if not raw_data_list:
+            logger.warning("Mock Server에서 스트리밍 데이터를 받지 못했습니다.")
+            return Response(status_code=204)
+        
+        logger.info(f"Mock Server에서 {len(raw_data_list)}개의 스트리밍 데이터를 받았습니다.")
+        
+        # 각 데이터를 처리
+        processed_count = 0
+        anomaly_count = 0
+        
+        for raw_data in raw_data_list:
+            try:
+                # 데이터 처리
+                processed_data = DataProcessor.process_sensor_data(raw_data)
+                
+                # 데이터베이스에 저장
+                save_success = storage_service.save_sensor_data(processed_data)
+                if not save_success:
+                    logger.error(f"스트리밍 데이터 저장 실패: {raw_data.equipment_id}")
+                    continue
+                
+                processed_count += 1
+                
+                # 이상치 탐지 및 이벤트 발행
+                if processed_data.is_anomaly:
+                    anomaly_count += 1
+                    background_tasks.add_task(
+                        kafka_publisher.publish_anomaly_detected, 
+                        processed_data
+                    )
+                    logger.info(f"🚨 스트리밍 이상치 탐지: {processed_data.equipment_id}")
+                
+                # 센서 데이터 이벤트 발행
+                background_tasks.add_task(
+                    kafka_publisher.publish_sensor_data, 
+                    processed_data
+                )
+                
+            except Exception as e:
+                logger.error(f"스트리밍 데이터 처리 오류 ({raw_data.equipment_id}): {e}")
+                continue
+        
+        return {
+            "status": "success",
+            "message": "스트리밍 데이터 처리 완료",
+            "total_received": len(raw_data_list),
+            "processed_count": processed_count,
+            "anomaly_count": anomaly_count,
+            "processed_at": datetime.utcnow()
+        }
+
+    except Exception as e:
+        logger.error(f"Mock Server 스트리밍 데이터 처리 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"Mock Server 스트리밍 데이터 처리 실패: {str(e)}")
+
+@app.post("/ingest/batch")
+async def ingest_batch_data(
+    background_tasks: BackgroundTasks
+):
+    """Mock Server에서 배치 데이터를 가져와서 처리합니다."""
+    try:
+        logger.info("Mock Server에서 배치 데이터를 가져오는 중...")
+        
+        # Mock Server에서 배치 데이터 가져오기
+        raw_data_list = await mock_server_client.get_batch_data()
+        
+        if not raw_data_list:
+            logger.warning("Mock Server에서 배치 데이터를 받지 못했습니다.")
+            return Response(status_code=204)
+        
+        logger.info(f"Mock Server에서 {len(raw_data_list)}개의 배치 데이터를 받았습니다.")
+        
+        # 각 데이터를 처리
+        processed_count = 0
+        anomaly_count = 0
+        
+        for raw_data in raw_data_list:
+            try:
+                # 데이터 처리
+                processed_data = DataProcessor.process_sensor_data(raw_data)
+                
+                # 데이터베이스에 저장
+                save_success = storage_service.save_sensor_data(processed_data)
+                if not save_success:
+                    logger.error(f"배치 데이터 저장 실패: {raw_data.equipment_id}")
+                    continue
+                
+                processed_count += 1
+                
+                # 이상치 탐지 및 이벤트 발행
+                if processed_data.is_anomaly:
+                    anomaly_count += 1
+                    background_tasks.add_task(
+                        kafka_publisher.publish_anomaly_detected, 
+                        processed_data
+                    )
+                    logger.info(f"🚨 배치 이상치 탐지: {processed_data.equipment_id}")
+                
+                # 센서 데이터 이벤트 발행
+                background_tasks.add_task(
+                    kafka_publisher.publish_sensor_data, 
+                    processed_data
+                )
+                
+            except Exception as e:
+                logger.error(f"배치 데이터 처리 오류 ({raw_data.equipment_id}): {e}")
+                continue
+        
+        return {
+            "status": "success",
+            "message": "배치 데이터 처리 완료",
+            "total_received": len(raw_data_list),
+            "processed_count": processed_count,
+            "anomaly_count": anomaly_count,
+            "processed_at": datetime.utcnow()
+        }
+
+    except Exception as e:
+        logger.error(f"Mock Server 배치 데이터 처리 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"Mock Server 배치 데이터 처리 실패: {str(e)}")
+
+
+@app.post("/ingest/external")
+async def ingest_external_sensor_data(
     raw_data: RawSensorData, 
     background_tasks: BackgroundTasks
 ):
-    """Ingest sensor data from external API"""
+    """외부 API에서 센서 데이터를 받아서 처리합니다 (기존 기능 유지)"""
     try:
-        logger.info(f"Received sensor data: {raw_data.equipment_id}")
+        logger.info(f"외부 API에서 센서 데이터 수신: {raw_data.equipment_id}")
 
-        # Process the data
+        # 데이터 처리
         processed_data = DataProcessor.process_sensor_data(raw_data)
 
-        # Save to database
+        # 데이터베이스에 저장
         save_success = storage_service.save_sensor_data(processed_data)
         if not save_success:
             raise HTTPException(status_code=500, detail="Failed to save data to database")
 
-        # Check for anomalies and publish events
+        # 이상치 탐지 및 이벤트 발행
         if processed_data.is_anomaly:
             background_tasks.add_task(
                 kafka_publisher.publish_anomaly_detected, 
                 processed_data
             )
-            logger.info(f"Anomaly detected for equipment {processed_data.equipment_id}")
+            logger.info(f"🚨 외부 API 이상치 탐지: {processed_data.equipment_id} - {processed_data.anomaly_metric} = {processed_data.anomaly_value}")
 
-        # Publish sensor data event
+        # 센서 데이터 이벤트 발행
         background_tasks.add_task(
             kafka_publisher.publish_sensor_data, 
             processed_data
@@ -140,7 +364,6 @@ async def ingest_sensor_data(
 
         # 이상치가 있는 경우에만 응답 반환
         if processed_data.is_anomaly:
-            logger.info(f"🚨 이상치 탐지됨: {processed_data.anomaly_metric} = {processed_data.anomaly_value} (임계값: {processed_data.anomaly_threshold})")
             response_data = {
                 "version": 1,
                 "event_id": str(uuid.uuid4()),
@@ -153,18 +376,18 @@ async def ingest_sensor_data(
                 "measured_at": processed_data.measured_at,
                 "detected_at": processed_data.ingested_at
             }
-            logger.info(f"📤 이상치 응답 반환: {response_data}")
+            logger.info(f"📤 외부 API 이상치 응답 반환: {response_data}")
             return response_data
         else:
             # 정상 데이터인 경우 204 No Content 반환
-            logger.info(f"✅ 정상 데이터 처리 완료: {processed_data.equipment_id}")
+            logger.info(f"✅ 외부 API 정상 데이터 처리 완료: {processed_data.equipment_id}")
             return Response(status_code=204)
 
     except ValueError as e:
-        logger.error(f"Data validation error: {e}")
+        logger.error(f"외부 API 데이터 검증 오류: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Processing error: {e}")
+        logger.error(f"외부 API 처리 오류: {e}")
         raise HTTPException(status_code=500, detail="Internal processing error")
 
 
@@ -177,6 +400,31 @@ async def trigger_batch_upload():
     except Exception as e:
         logger.error(f"Manual batch upload error: {e}")
         raise HTTPException(status_code=500, detail="Batch upload failed")
+
+@app.post("/trigger-mock-data-process")
+async def trigger_mock_data_process():
+    """Manually trigger mock data processing"""
+    try:
+        await mock_data_scheduler.force_process()
+        return {"status": "success", "message": "Mock data processing triggered"}
+    except Exception as e:
+        logger.error(f"Manual mock data processing error: {e}")
+        raise HTTPException(status_code=500, detail="Mock data processing failed")
+
+@app.get("/mock-scheduler/status")
+async def get_mock_scheduler_status():
+    """Get Mock Data Scheduler status"""
+    try:
+        status = mock_data_scheduler.get_status()
+        return {
+            "scheduler": "mock_data",
+            "status": status,
+            "mock_server_url": settings.mock_server_url,
+            "data_fetch_interval_seconds": settings.mock_server_data_fetch_interval_seconds
+        }
+    except Exception as e:
+        logger.error(f"Mock scheduler status error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get mock scheduler status")
 
 
 @app.get("/stats")
@@ -204,6 +452,9 @@ async def get_stats():
         # Get storage stats
         storage_stats = storage_service.get_storage_stats() if hasattr(storage_service, 'get_storage_stats') else {}
         
+        # Get mock scheduler status
+        mock_scheduler_status = mock_data_scheduler.get_status()
+        
         stats_data = {
             "realtime_records": realtime_count,
             "active_alerts": alert_count,
@@ -211,6 +462,9 @@ async def get_stats():
             "batch_size": storage_service.batch_size,
             "batch_interval_minutes": storage_service.batch_interval,
             "scheduler_running": batch_scheduler.is_running,
+            "mock_scheduler": mock_scheduler_status,
+            "mock_server_url": settings.mock_server_url,
+            "mock_server_data_fetch_interval": settings.mock_server_data_fetch_interval_seconds,
             "storage_stats": storage_stats,
             "cached": False
         }

@@ -161,6 +161,12 @@ services:
       - KAFKA_TOPIC_ANOMALY=fire-iot.sensorDataAnomalyDetected
       - KAFKA_TOPIC_DATA_SAVED=fire-iot.sensorDataSaved
       - KAFKA_TOPIC_SENSOR_DATA=fire-iot.sensor-data
+      # Mock Server Configuration
+      - MOCK_SERVER_URL=http://mock-server:8001
+      - MOCK_SERVER_DATA_COUNT=10
+      - MOCK_SERVER_DATA_FETCH_INTERVAL=5
+      - MOCK_SERVER_STREAM_COUNT=5
+      - MOCK_SERVER_BATCH_COUNT=100
       # Storage Configuration
       - STORAGE_TYPE=mock
       - BATCH_SIZE=100
@@ -207,6 +213,7 @@ services:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       - WEBSITES_PORT=8501
+      - DASHBOARD_REFRESH_INTERVAL=1
       # Redis Configuration (for caching)
       - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis
