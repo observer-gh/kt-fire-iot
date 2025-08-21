@@ -1,4 +1,4 @@
-name: Build and Push FacilityManagement
+name: FacilityManagement CI/CD
 
 on:
   push:
@@ -12,7 +12,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  # PR에서는 빌드만 수행
+  build-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build FacilityManagement image (PR)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/facilitymanagement
+          push: false
+          tags: |
+            kt-fire-iot-facilitymanagement:pr-${{ github.event.pull_request.number }}
+            kt-fire-iot-facilitymanagement:${{ github.sha }}
+          cache-from: |
+            type=gha,scope=facilitymanagement-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:buildcache
+          cache-to: type=gha,mode=max,scope=facilitymanagement-build
+
+  # Push/Merge에서는 빌드, 푸시까지 수행
+  build-push:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -23,19 +50,50 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build FacilityManagement image
+      - name: Build and Push FacilityManagement image
         uses: docker/build-push-action@v5
         with:
           context: ./services/facilitymanagement
-          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:buildcache
+          cache-from: |
+            type=gha,scope=facilitymanagement-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:buildcache
+          cache-to: |
+            type=gha,mode=max,scope=facilitymanagement-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:buildcache,mode=max
+
+      # 배포 단계 추가
+      - name: Deploy FacilityManagement service
+        run: |
+          echo "🚀 Deploying FacilityManagement service to Azure Web App Container..."
+          echo "📦 Image: ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:${{ github.sha }}"
+          echo "⏰ Deployment time: $(date)"
+
+          # Azure Web App Container에 배포
+          echo "☁️ Starting deployment to Azure Web App Container..."
+
+                    az webapp config container set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-facilitymanagement \
+            --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:${{ github.sha }} \
+            --docker-registry-server-url https://index.docker.io/v1/ \
+            --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
+
+          # 배포 상태 확인
+          echo "🔍 Checking deployment status..."
+          az webapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-facilitymanagement \
+            --output table
+
+          echo "✅ FacilityManagement service deployment to Azure Web App Container completed successfully!"
