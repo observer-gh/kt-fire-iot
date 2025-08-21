@@ -483,6 +483,10 @@ resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
         {
+          name: 'MOCK_SERVER_URL'
+          value: 'https://${mockServerApp.properties.defaultHostName}'
+        }
+        {
           name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
           value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
         }
