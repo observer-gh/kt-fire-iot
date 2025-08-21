@@ -305,8 +305,6 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
   }
 }
 
-
-
 // App Service Plan
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: 'fire-iot-plan-${environment}'
@@ -316,7 +314,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
     tier: 'PremiumV3'
   }
   properties: {
-    reserved: true  // Linux
+    reserved: true // Linux
   }
 }
 
