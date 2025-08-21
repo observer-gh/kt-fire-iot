@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Any, Optional
 from slack_sdk.webhook import WebhookClient
 from .config import settings
+from .kafka_producer import KafkaEventProducer
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +16,22 @@ class SlackNotifier:
             self.client = None
             logger.warning(
                 "Slack webhook URL not configured - notifications will be logged only")
+        
+        # Initialize Kafka producer for event publishing
+        self.kafka_producer = KafkaEventProducer()
 
     def send_alert(self, alert_data: Dict[str, Any], topic: str):
         """Send alert notification to Slack"""
+        alert_id = alert_data.get('alert_id', 'unknown')
+        
         if not self.client:
             logger.info(f"Slack notification (not sent): {alert_data}")
+            # Publish failure event since Slack is not configured
+            self.kafka_producer.publish_alert_fail(
+                alert_id=alert_id,
+                error_code="SLACK_NOT_CONFIGURED",
+                error_message="Slack webhook URL not configured"
+            )
             return
 
         try:
@@ -28,56 +40,79 @@ class SlackNotifier:
 
             if response.status_code == 200:
                 logger.info(
-                    f"Slack notification sent successfully for alert {alert_data.get('alert_id', 'unknown')}")
+                    f"Slack notification sent successfully for alert {alert_id}")
+                # Publish success event
+                self.kafka_producer.publish_alert_success(
+                    alert_id=alert_id,
+                    channel="slack"
+                )
             else:
                 logger.error(
                     f"Failed to send Slack notification: {response.status_code} - {response.body}")
+                # Publish failure event
+                self.kafka_producer.publish_alert_fail(
+                    alert_id=alert_id,
+                    error_code=f"SLACK_HTTP_{response.status_code}",
+                    error_message=response.body
+                )
 
         except Exception as e:
             logger.error(f"Error sending Slack notification: {e}")
+            # Publish failure event
+            self.kafka_producer.publish_alert_fail(
+                alert_id=alert_id,
+                error_code="SLACK_EXCEPTION",
+                error_message=str(e)
+            )
 
     def _format_message(self, alert_data: Dict[str, Any], topic: str) -> str:
         """Format alert data into Slack message"""
-        data = alert_data.get('data', {})
+        # Kafka 메시지는 직접 루트에 필드들이 있음 (data 필드 없음)
+        # data 필드가 있으면 사용하고, 없으면 직접 루트에서 가져옴
+        if 'data' in alert_data:
+            data = alert_data.get('data', {})
+        else:
+            data = alert_data
 
         # Determine severity and emoji
         severity = data.get('severity', 'UNKNOWN')
-        if topic == 'EmergencyAlertTriggered':
+        if topic == 'controltower.emergencyAlertIssued':
             emoji = "🚨"
             color = "danger"
         else:
             emoji = "⚠️"
             color = "warning"
 
-        # Format location
-        location = data.get('location', {})
-        location_str = f"{location.get('building_name', 'Unknown Building')}"
-        if location.get('floor'):
-            location_str += f" - Floor {location['floor']}"
-        if location.get('room'):
-            location_str += f" - Room {location['room']}"
+        # Format location - equipment_location 필드 사용
+        location_str = data.get('equipment_location', 'Unknown Building')
 
-        # Format sensor readings
-        sensors = data.get('sensor_readings', {})
-        sensor_str = ""
-        if sensors:
-            readings = []
-            for sensor, value in sensors.items():
-                if value is not None:
-                    readings.append(f"{sensor}: {value}")
-            if readings:
-                sensor_str = f" | Sensors: {', '.join(readings)}"
+        # Format alert type
+        alert_type = data.get('alert_type', 'Unknown Type')
 
         # Build message
-        message = f"{emoji} *{severity} ALERT* - {data.get('rule_name', 'Unknown Rule')}\n"
+        message = f"{emoji} *{severity} ALERT* - {alert_type}\n"
         message += f"📍 *Location:* {location_str}\n"
-        message += f"📝 *Message:* {data.get('message', 'No message')}\n"
+        message += f"📝 *Equipment ID:* {data.get('equipment_id', 'Unknown')}\n"
         message += f"🆔 *Alert ID:* {data.get('alert_id', 'Unknown')}\n"
-        message += f"🏢 *Station:* {data.get('station_id', 'Unknown')}\n"
+        message += f"🏢 *Facility ID:* {data.get('facility_id', 'Unknown')}\n"
+        message += f"📊 *Status:* {data.get('status', 'Unknown')}\n"
 
-        if sensor_str:
-            message += f"📊 *Readings:* {sensor_str}\n"
+        # Format timestamp
+        created_at = data.get('created_at', 'Unknown')
+        if isinstance(created_at, (int, float)):
+            from datetime import datetime
+            try:
+                # Unix timestamp를 datetime으로 변환
+                dt = datetime.fromtimestamp(created_at)
+                created_at = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except:
+                created_at = str(created_at)
 
-        message += f"⏰ *Time:* {data.get('created_at', 'Unknown')}"
+        message += f"⏰ *Time:* {created_at}"
 
         return message
+
+    def close(self):
+        """Close the Kafka producer"""
+        if hasattr(self, 'kafka_producer'):
+            self.kafka_producer.close()

@@ -82,10 +82,32 @@ class BatchScheduler:
             
             # 각 센서 데이터를 로컬 스토리지에 저장
             saved_count = 0
+            error_count = 0
+            
             for sensor_data in sensor_data_list:
                 try:
+                    # 데이터 구조 검증
+                    if not isinstance(sensor_data, dict):
+                        logger.error(f"센서 데이터가 딕셔너리가 아님: {type(sensor_data)}")
+                        error_count += 1
+                        continue
+                    
+                    # 필수 필드 확인
+                    required_fields = ['equipment_id', 'measured_at']
+                    missing_fields = [field for field in required_fields if field not in sensor_data]
+                    if missing_fields:
+                        logger.error(f"필수 필드 누락: {missing_fields}, 데이터: {sensor_data.get('equipment_id', 'unknown')}")
+                        error_count += 1
+                        continue
+                    
                     # ProcessedSensorData 객체로 변환
-                    processed_data = ProcessedSensorData(**sensor_data)
+                    try:
+                        processed_data = ProcessedSensorData(**sensor_data)
+                    except Exception as e:
+                        logger.error(f"ProcessedSensorData 변환 실패 ({sensor_data.get('equipment_id', 'unknown')}): {e}")
+                        logger.error(f"데이터 내용: {sensor_data}")
+                        error_count += 1
+                        continue
                     
                     # 로컬 스토리지에 저장
                     save_success = self.storage_service.save_sensor_data(processed_data)
@@ -97,10 +119,19 @@ class BatchScheduler:
                         
                     else:
                         logger.error(f"센서 데이터 저장 실패: {sensor_data.get('equipment_id', 'unknown')}")
+                        error_count += 1
                         
                 except Exception as e:
                     logger.error(f"개별 센서 데이터 flush 처리 오류: {e}")
+                    logger.error(f"문제가 된 데이터: {sensor_data}")
+                    error_count += 1
                     continue
+            
+            # 결과 요약
+            if error_count > 0:
+                logger.warning(f"Redis flush 완료: {saved_count}개 성공, {error_count}개 실패")
+            else:
+                logger.info(f"Redis flush 완료: {saved_count}개 모두 성공")
             
             # Redis 데이터 정리 (flush 완료 후)
             if saved_count > 0:
@@ -109,8 +140,10 @@ class BatchScheduler:
                     logger.info(f"Redis 센서 데이터 {saved_count}개를 로컬 스토리지로 flush 완료")
                 else:
                     logger.warning("Redis 센서 데이터 정리 실패")
+            elif error_count > 0:
+                logger.warning("일부 데이터 처리 실패로 Redis 정리 건너뜀")
             else:
-                logger.warning("flush할 센서 데이터가 없거나 저장에 실패했습니다")
+                logger.debug("flush할 센서 데이터가 없습니다")
                 
         except Exception as e:
             logger.error(f"Redis 데이터 flush 오류: {e}")

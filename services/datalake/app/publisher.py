@@ -52,8 +52,8 @@ class KafkaPublisher:
                 metric=processed_data.anomaly_metric,
                 value=processed_data.anomaly_value,
                 threshold=processed_data.anomaly_threshold,
-                measured_at=processed_data.measured_at,
-                detected_at=datetime.utcnow()
+                measured_at=processed_data.measured_at.replace(tzinfo=None).isoformat() + "Z",
+                detected_at=datetime.utcnow().replace(tzinfo=None).isoformat() + "Z"
             )
 
             # Publish to Kafka

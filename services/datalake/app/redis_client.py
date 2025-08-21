@@ -155,7 +155,17 @@ class RedisClient:
         """센서 데이터를 Redis에 저장"""
         if not self.is_connected():
             return False
+        
         try:
+            # 입력 데이터 검증
+            if not isinstance(data, dict):
+                logger.error(f"입력 데이터가 딕셔너리가 아님: {type(data)}")
+                return False
+            
+            if 'equipment_id' not in data:
+                logger.error("equipment_id 필드가 없습니다")
+                return False
+            
             # datetime 객체를 ISO 문자열로 변환
             serializable_data = self._make_json_serializable(data)
             
@@ -173,18 +183,24 @@ class RedisClient:
             # 데이터 저장
             success = self.client.set(key, json.dumps(serializable_data))
             
-            # 센서 데이터 목록에 키 추가
-            list_key = f"sensor_data_list:{serializable_data['equipment_id']}"
-            self.client.lpush(list_key, key)
-            
-            # 전체 센서 데이터 목록에도 추가
-            all_sensors_key = "all_sensor_data_keys"
-            self.client.lpush(all_sensors_key, key)
-            
-            logger.debug(f"센서 데이터 Redis 저장 성공: {key}")
-            return success
+            if success:
+                # 센서 데이터 목록에 키 추가
+                list_key = f"sensor_data_list:{serializable_data['equipment_id']}"
+                self.client.lpush(list_key, key)
+                
+                # 전체 센서 데이터 목록에도 추가
+                all_sensors_key = "all_sensor_data_keys"
+                self.client.lpush(all_sensors_key, key)
+                
+                logger.debug(f"센서 데이터 Redis 저장 성공: {key}")
+                return True
+            else:
+                logger.error(f"Redis 저장 실패: {key}")
+                return False
+                
         except Exception as e:
             logger.error(f"센서 데이터 Redis 저장 실패: {e}")
+            logger.error(f"문제가 된 데이터: {data}")
             return False
     
     def _make_json_serializable(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -244,11 +260,32 @@ class RedisClient:
             sensor_data_list = []
             
             for key in all_keys:
-                data = self.get_sensor_data_by_key(key)
-                if data:
-                    # ISO 문자열을 datetime 객체로 변환
-                    converted_data = self._convert_iso_strings_to_datetime(data)
-                    sensor_data_list.append(converted_data)
+                try:
+                    data = self.get_sensor_data_by_key(key)
+                    if data:
+                        # ISO 문자열을 datetime 객체로 변환
+                        converted_data = self._convert_iso_strings_to_datetime(data)
+                        
+                        # 데이터 유효성 검증
+                        if self._validate_sensor_data(converted_data):
+                            sensor_data_list.append(converted_data)
+                        else:
+                            logger.warning(f"유효하지 않은 센서 데이터 제외: {key}")
+                            # 유효하지 않은 데이터는 Redis에서 삭제
+                            self.client.delete(key)
+                    else:
+                        logger.warning(f"Redis에서 데이터를 가져올 수 없음: {key}")
+                        # 데이터가 없는 키도 삭제
+                        self.client.delete(key)
+                        
+                except Exception as e:
+                    logger.error(f"개별 센서 데이터 처리 오류 ({key}): {e}")
+                    # 오류가 발생한 키도 삭제
+                    try:
+                        self.client.delete(key)
+                    except:
+                        pass
+                    continue
             
             logger.info(f"Redis에서 {len(sensor_data_list)}개의 센서 데이터를 flush용으로 조회")
             return sensor_data_list
@@ -269,6 +306,7 @@ class RedisClient:
                     converted_data[key] = datetime.fromisoformat(value)
                 except ValueError:
                     # 변환 실패 시 원본 값 유지
+                    logger.warning(f"날짜 변환 실패 ({key}): {value}")
                     converted_data[key] = value
             elif isinstance(value, dict):
                 # 중첩된 딕셔너리도 재귀적으로 처리
@@ -284,6 +322,27 @@ class RedisClient:
                 converted_data[key] = value
         
         return converted_data
+    
+    def _validate_sensor_data(self, data: Dict[str, Any]) -> bool:
+        """센서 데이터의 유효성을 검증"""
+        required_fields = ['equipment_id', 'measured_at']
+        
+        for field in required_fields:
+            if field not in data:
+                logger.warning(f"필수 필드 누락: {field}")
+                return False
+        
+        # equipment_id가 문자열인지 확인
+        if not isinstance(data.get('equipment_id'), str):
+            logger.warning(f"equipment_id가 문자열이 아님: {type(data.get('equipment_id'))}")
+            return False
+        
+        # measured_at가 datetime인지 확인
+        if not isinstance(data.get('measured_at'), datetime):
+            logger.warning(f"measured_at가 datetime이 아님: {type(data.get('measured_at'))}")
+            return False
+        
+        return True
     
     def clear_sensor_data(self) -> bool:
         """Redis의 모든 센서 데이터 삭제 (flush 후 정리용)"""
