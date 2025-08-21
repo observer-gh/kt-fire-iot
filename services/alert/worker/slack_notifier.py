@@ -84,10 +84,10 @@ class SlackNotifier:
             color = "warning"
 
         # Format location - equipment_location 필드 사용
-        location_str = data.get('equipment_location', 'Unknown Building')
+        location_str = data.get('equipment_location', 'Unknown')
         
         # location_str이 null이거나 빈 값이면 기본값 사용
-        if not location_str or location_str == 'Unknown Building' or location_str.strip() == '':
+        if not location_str or location_str == 'Unknown' or location_str.strip() == '':
             location_str = "KT판교 사옥 8층"
 
         # Format alert type
