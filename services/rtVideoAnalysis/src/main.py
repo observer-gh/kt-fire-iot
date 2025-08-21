@@ -2,6 +2,9 @@ import logging
 import signal
 import sys
 import time
+import asyncio
+import tornado.ioloop
+import tornado.web
 from .config import Config
 from .azure_vision_client import AzureVisionClient
 from .event_publisher import EventPublisher
@@ -22,6 +25,7 @@ class RtVideoAnalysisService:
         self.event_publisher = None
         self.video_processor = None
         self.running = False
+        self.ioloop = None
 
     def initialize(self):
         """Initialize all service components"""
@@ -64,14 +68,14 @@ class RtVideoAnalysisService:
             logger.error(f"Failed to initialize service: {e}")
             return False
 
-    def start(self):
-        """Start the video analysis service"""
+    async def start_async(self):
+        """Start the video analysis service with Tornado IOLoop"""
         if not self.initialize():
             logger.error("Service initialization failed")
             return False
 
         try:
-            logger.info("Starting RtVideoAnalysis service...")
+            logger.info("Starting RtVideoAnalysis service with Tornado...")
             self.running = True
 
             # Start video processing
@@ -81,16 +85,29 @@ class RtVideoAnalysisService:
 
             logger.info("RtVideoAnalysis service started successfully")
 
-            # Keep service running
+            # Keep service running with Tornado IOLoop
             while self.running:
-                time.sleep(1)
+                await asyncio.sleep(1)
 
-        except KeyboardInterrupt:
-            logger.info("Received interrupt signal")
         except Exception as e:
             logger.error(f"Service error: {e}")
         finally:
             self.stop()
+
+    def start(self):
+        """Start the service with Tornado IOLoop"""
+        try:
+            # Create Tornado IOLoop
+            self.ioloop = tornado.ioloop.IOLoop.current()
+
+            # Run async service
+            self.ioloop.run_sync(self.start_async)
+
+        except KeyboardInterrupt:
+            logger.info("Received interrupt signal")
+        except Exception as e:
+            logger.error(f"Service failed to start: {e}")
+            sys.exit(1)
 
     def stop(self):
         """Stop the video analysis service"""
@@ -102,6 +119,9 @@ class RtVideoAnalysisService:
 
         if self.event_publisher:
             self.event_publisher.close()
+
+        if self.ioloop:
+            self.ioloop.stop()
 
         logger.info("RtVideoAnalysis service stopped")
 

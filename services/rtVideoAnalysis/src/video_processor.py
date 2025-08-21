@@ -2,6 +2,7 @@ import logging
 import cv2
 import time
 import threading
+import asyncio
 from datetime import datetime
 from .azure_vision_client import AzureVisionClient
 from .event_publisher import EventPublisher
@@ -20,14 +21,18 @@ class VideoProcessor:
         self.stream_client = None
 
     def start_processing(self):
-        """Start processing video streams via WebSocket"""
+        """Start processing video streams via SockJS"""
         self.running = True
 
-        # Initialize WebSocket stream client
+        # Initialize SockJS stream client
+        if not self.config.WEBSOCKET_URL:
+            logger.error("WebSocket URL not configured")
+            return False
+
         self.stream_client = StreamClient(self.config.WEBSOCKET_URL)
 
         if not self.stream_client.connect():
-            logger.error("Failed to connect to WebSocket streaming server")
+            logger.error("Failed to connect to SockJS streaming server")
             return False
 
         # Set frame callback for processing
@@ -37,9 +42,10 @@ class VideoProcessor:
         for i, cctv_id in enumerate(self.config.CCTV_IDS):
             video_file = self.config.DEFAULT_VIDEO_FILES[i % len(
                 self.config.DEFAULT_VIDEO_FILES)]
-            logger.info(f"Starting stream for {cctv_id} with {video_file}")
+            logger.info(
+                f"Starting stream for {cctv_id} with {video_file}")
 
-            # Start stream in separate thread
+            # Start stream in separate thread (non-blocking)
             thread = threading.Thread(
                 target=self._start_stream,
                 args=(cctv_id, video_file),
@@ -48,14 +54,15 @@ class VideoProcessor:
             thread.start()
             self.threads.append(thread)
 
-        logger.info(f"Started {len(self.threads)} video streaming threads")
+        logger.info(
+            f"Started {len(self.threads)} video streaming threads")
         return True
 
     def stop_processing(self):
         """Stop all video processing threads"""
         self.running = False
 
-        # Stop WebSocket streams
+        # Stop SockJS streams
         if self.stream_client:
             self.stream_client.stop_stream()
             self.stream_client.disconnect()
@@ -77,7 +84,7 @@ class VideoProcessor:
             logger.error(f"Error starting stream for {cctv_id}: {e}")
 
     def _process_frame(self, frame, cctv_id):
-        """Process single frame for fire detection"""
+        """Process single frame for fire detection (async-friendly)"""
         try:
             # Convert frame to PIL Image
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

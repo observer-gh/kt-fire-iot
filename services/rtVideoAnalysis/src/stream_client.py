@@ -3,8 +3,10 @@ import json
 import base64
 import cv2
 import numpy as np
-from io import BytesIO
-from PIL import Image
+import asyncio
+import tornado.ioloop
+import tornado.web
+import tornado.httpclient
 import websocket
 import threading
 import time
@@ -12,22 +14,18 @@ import time
 logger = logging.getLogger(__name__)
 
 
-class StreamClient:
-    def __init__(self, websocket_url=None):
-        self.websocket_url = websocket_url
-        self.ws = None
+class SockJSWebSocketClient:
+    def __init__(self, ws_url, frame_callback=None):
+        self.ws_url = ws_url
+        self.frame_callback = frame_callback
         self.connected = False
-        self.frame_callback = None
-        self.running = False
+        self.ws = None
 
     def connect(self):
-        """Connect to WebSocket streaming server"""
+        """Connect to WebSocket"""
         try:
-            if not self.websocket_url:
-                raise ValueError("WebSocket URL not configured")
-
             self.ws = websocket.WebSocketApp(
-                self.websocket_url,
+                self.ws_url,
                 on_open=self._on_open,
                 on_message=self._on_message,
                 on_error=self._on_error,
@@ -45,15 +43,10 @@ class StreamClient:
                 time.sleep(0.1)
                 timeout -= 0.1
 
-            if not self.connected:
-                raise Exception(
-                    "Failed to connect to WebSocket streaming server")
-
-            logger.info("Connected to WebSocket streaming server")
-            return True
+            return self.connected
 
         except Exception as e:
-            logger.error(f"Failed to connect to streaming server: {e}")
+            logger.error(f"WebSocket connection failed: {e}")
             return False
 
     def _on_open(self, ws):
@@ -62,28 +55,37 @@ class StreamClient:
         self.connected = True
 
         # Subscribe to CCTV stream topic
-        subscribe_msg = {
-            "destination": "/topic/cctv-stream",
-            "id": "cctv-subscription"
-        }
-        ws.send(json.dumps(subscribe_msg))
+        subscribe_msg = json.dumps([
+            "SUBSCRIBE",
+            {"destination": "/topic/cctv-stream", "id": "cctv-subscription"}
+        ])
+        ws.send(subscribe_msg)
         logger.info("Subscribed to CCTV stream topic")
 
     def _on_message(self, ws, message):
         """Handle incoming WebSocket messages"""
         try:
-            data = json.loads(message)
+            # Handle SockJS message format
+            if message.startswith('a['):
+                # Parse SockJS array message
+                data_str = message[2:-1]  # Remove 'a[' and ']'
+                if data_str.startswith('"') and data_str.endswith('"'):
+                    data_str = data_str[1:-1]  # Remove quotes
+                    data_str = data_str.replace('\\"', '"')  # Unescape quotes
 
-            if "payload" in data and data["payload"]:
-                # Decode base64 video frame
-                frame_data = base64.b64decode(data["payload"])
+                data = json.loads(data_str)
 
-                # Convert to OpenCV format
-                nparr = np.frombuffer(frame_data, np.uint8)
-                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if isinstance(data, dict) and "imageData" in data:
+                    # Decode base64 video frame
+                    frame_data = base64.b64decode(data["imageData"])
 
-                if frame is not None and self.frame_callback:
-                    self.frame_callback(frame, data.get("cctv_id", "unknown"))
+                    # Convert to OpenCV format
+                    nparr = np.frombuffer(frame_data, np.uint8)
+                    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                    if frame is not None and self.frame_callback:
+                        self.frame_callback(frame, data.get(
+                            "videoFileName", "unknown"))
 
         except Exception as e:
             logger.error(f"Error processing WebSocket message: {e}")
@@ -98,47 +100,155 @@ class StreamClient:
         logger.info("WebSocket connection closed")
         self.connected = False
 
+    def send_control_message(self, action, video_file_name=None):
+        """Send control message to start/stop streaming"""
+        if not self.connected or not self.ws:
+            logger.error("WebSocket not connected")
+            return False
+
+        control_msg = json.dumps([
+            "SEND",
+            {"destination": "/app/cctv/control"},
+            json.dumps({
+                "action": action,
+                "videoFileName": video_file_name
+            })
+        ])
+
+        self.ws.send(control_msg)
+        return True
+
+    def close(self):
+        """Close WebSocket connection"""
+        if self.ws:
+            self.ws.close()
+        self.connected = False
+
+
+class StreamClient:
+    def __init__(self, websocket_url=None):
+        self.websocket_url = websocket_url
+        self.connected = False
+        self.frame_callback = None
+        self.running = False
+        self.ws_client = None
+        self.ioloop = None
+
+    async def connect_async(self):
+        """Connect to SockJS WebSocket streaming server"""
+        try:
+            if not self.websocket_url:
+                raise ValueError("WebSocket URL not configured")
+
+            logger.info(f"Connecting to SockJS: {self.websocket_url}")
+
+            # Get SockJS session info
+            session_info = await self._get_sockjs_session()
+            if not session_info:
+                raise Exception("Failed to get SockJS session")
+
+            # Create WebSocket URL with session
+            ws_url = f"{self.websocket_url}/{session_info['server_id']}/{session_info['session_id']}/websocket"
+            logger.info(f"Connecting to WebSocket: {ws_url}")
+
+            # Create and connect WebSocket client
+            self.ws_client = SockJSWebSocketClient(ws_url, self.frame_callback)
+
+            if self.ws_client.connect():
+                self.connected = True
+                logger.info("Connected to SockJS streaming server")
+                return True
+            else:
+                raise Exception("WebSocket connection failed")
+
+        except Exception as e:
+            logger.error(f"Failed to connect: {e}")
+            return False
+
+    def connect(self):
+        """Connect to SockJS WebSocket streaming server"""
+        try:
+            if not self.websocket_url:
+                raise ValueError("WebSocket URL not configured")
+
+            logger.info(f"Connecting to SockJS: {self.websocket_url}")
+
+            # Simple approach - connect directly without session negotiation for now
+            ws_url = f"{self.websocket_url.replace('ws://', 'ws://')}/websocket"
+            logger.info(f"Connecting to WebSocket: {ws_url}")
+
+            # Create and connect WebSocket client
+            self.ws_client = SockJSWebSocketClient(ws_url, self.frame_callback)
+
+            if self.ws_client.connect():
+                self.connected = True
+                logger.info("Connected to SockJS streaming server")
+                return True
+            else:
+                raise Exception("WebSocket connection failed")
+
+        except Exception as e:
+            logger.error(f"Failed to connect: {e}")
+            return False
+
+    async def _get_sockjs_session(self):
+        """Get SockJS session information"""
+        try:
+            # Convert ws:// to http:// for HTTP requests
+            base_url = self.websocket_url.replace('ws://', 'http://')
+
+            # Create HTTP client
+            http_client = tornado.httpclient.AsyncHTTPClient()
+
+            # Get server info
+            info_url = f"{base_url}/info"
+            response = await http_client.fetch(info_url)
+            if response.code != 200:
+                logger.error(f"Failed to get SockJS info: {response.code}")
+                return None
+
+            # Create session
+            session_url = f"{base_url}/000/xhr"
+            response = await http_client.fetch(session_url, method='POST', body="")
+            if response.code != 200:
+                logger.error(
+                    f"Failed to create SockJS session: {response.code}")
+                return None
+
+            # Extract session ID from response
+            session_id = response.body.decode().strip()
+            return {
+                "server_id": "000",
+                "session_id": session_id
+            }
+        except Exception as e:
+            logger.error(f"Error getting SockJS session: {e}")
+            return None
+
     def start_stream(self, video_file_name):
         """Start video streaming"""
-        if not self.connected:
+        if not self.connected or not self.ws_client:
             logger.error("Not connected to streaming server")
             return False
 
-        control_msg = {
-            "destination": "/app/cctv/control",
-            "payload": json.dumps({
-                "action": "start",
-                "videoFileName": video_file_name
-            })
-        }
-
-        self.ws.send(json.dumps(control_msg))
-        logger.info(f"Started streaming: {video_file_name}")
-        return True
+        return self.ws_client.send_control_message("start", video_file_name)
 
     def stop_stream(self):
         """Stop video streaming"""
-        if not self.connected:
+        if not self.connected or not self.ws_client:
             return False
 
-        control_msg = {
-            "destination": "/app/cctv/control",
-            "payload": json.dumps({
-                "action": "stop"
-            })
-        }
-
-        self.ws.send(json.dumps(control_msg))
-        logger.info("Stopped streaming")
-        return True
+        return self.ws_client.send_control_message("stop")
 
     def set_frame_callback(self, callback):
         """Set callback function for processing video frames"""
         self.frame_callback = callback
+        if self.ws_client:
+            self.ws_client.frame_callback = callback
 
     def disconnect(self):
         """Disconnect from WebSocket"""
-        if self.ws:
-            self.ws.close()
+        if self.ws_client:
+            self.ws_client.close()
         self.connected = False
         logger.info("Disconnected from streaming server")
