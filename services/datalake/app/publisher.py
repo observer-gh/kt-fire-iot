@@ -98,9 +98,12 @@ class KafkaPublisher:
         This method is called ONLY when sensor data is flushed from Redis to local storage.
         It should NOT be called for real-time data ingestion.
         
+        Note: For Redis flush operations, this method is called ONCE per batch (not per individual sensor data)
+        to avoid excessive event publishing.
+        
         Args:
-            processed_data: The processed sensor data that was saved
-            filepath: Path or identifier where data was saved (e.g., "redis_flush", "batch_upload")
+            processed_data: The processed sensor data that was saved (representative data for batch)
+            filepath: Path or identifier where data was saved (e.g., "redis_flush_batch_X_equipment", "batch_upload")
         """
         if not self.producer:
             logger.error("Kafka producer not connected")

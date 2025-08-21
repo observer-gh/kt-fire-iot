@@ -555,10 +555,11 @@ curl -X POST http://localhost:8080/trigger-batch-upload
 
 #### 2. sensorDataSaved ⚠️ IMPORTANT
 
-- **When**: Redis flush 시에만 발행 (1분 간격)
+- **When**: Redis flush 시에만 발행 (1분 간격, 배치 단위)
 - **Topic**: `datalake.sensorDataSaved`
 - **Usage**: 데이터 영속성 확인 및 배치 처리
 - **NOT for**: 실시간 데이터 수신 시
+- **Batch Behavior**: Redis flush 시 각 센서 데이터마다 개별 이벤트를 발행하지 않고, 배치로 한 번에 이벤트를 발행하여 이벤트 수를 제한
 
 #### 3. Legacy sensorData (Deprecated)
 
