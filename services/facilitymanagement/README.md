@@ -1,86 +1,48 @@
 # FacilityManagement
 
-Master data management service for fire department equipment and maintenance records.
+관리자에 의한 소방시설 데이터 업데이트 이벤트 발생 시 equipment, equipment_maintenance 데이터 수정하기.
+배치 기능(매일 오전 8시에 1개월 이하로 만료되는 장비 조회)을 통해 유지보수가 필요한 장비에 대해 위험 스코어링을 계산하고 `maintenanceRequested` 토픽 발행.
 
-## 🚀 Quick Start
+## Kafka Topics
 
-### Build
+### Producer Topics (발행하는 토픽)
 
-```bash
-# With Maven
-mvn clean package
+#### `facilitymanagement.maintenanceRequested`
+- **목적**: 유지보수 요청 이벤트 발행. Alert 서비스가 구독하는 토픽이다.
+- **발행 시점**: 
+  - 배치 프로세스에서 만료 예정 장비 발견 시
+  - 수동으로 유지보수 요청 시
+- **이벤트 구조**:
+  ```json
+  {
+    "version": 1,
+    "maintenance_log_id": "MAINT_ABC12345",
+    "equipment_id": "EQ001",
+    "facility_id": "FAC001",
+    "maintenance_type": "INSPECTION",
+    "scheduled_date": "2025-08-21T10:00:00Z",
+    "note": "정기 점검 필요",
+    "requested_at": "2025-08-21T08:00:00Z"
+  }
+  ```
 
-# With Docker
-docker build -t fire-iot-facilitymanagement .
-```
+### Consumer Topics (구독하는 토픽)
 
-### Run
-
-```bash
-# Local development
-mvn spring-boot:run
-
-# With Docker
-docker run -d --name facilitymanagement --network infra_fire-iot-network -p 8083:8080 \
-  -e POSTGRES_URL=jdbc:postgresql://fire-iot-postgres:5432/core \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres fire-iot-facilitymanagement
-```
-
-### Test
-
-```bash
-# Health check
-curl http://localhost:8083/healthz
-
-# API documentation
-open http://localhost:8083/swagger-ui.html
-```
-
-## 📊 APIs
-
-- `GET /api/v1/healthz` - Health check
-- `GET /api/v1/equipment` - List equipment
-- `POST /api/v1/equipment` - Register equipment
-- `GET /api/v1/equipment/{id}` - Get equipment details
-- `PUT /api/v1/equipment/{id}` - Update equipment
-- `GET /api/v1/maintenance` - List maintenance records
-- `POST /api/v1/maintenance` - Record maintenance
-
-## 🔧 Development
-
-### Database Migration
-
-```bash
-# Run migrations
-mvn flyway:migrate
-
-# Check migration status
-mvn flyway:info
-```
-
-### Testing
-
-```bash
-# Unit tests
-mvn test
-
-# Integration tests
-mvn test -Dspring.profiles.active=test
-```
-
-## 📁 Structure
-
-```
-src/
-├── main/
-│   ├── java/com/fireiot/facilitymanagement/
-│   │   ├── FacilityManagementApplication.java
-│   │   ├── controllers/     # REST controllers
-│   │   ├── services/        # Business logic
-│   │   ├── repositories/    # Data access
-│   │   └── models/          # Entities & DTOs
-│   └── resources/
-│       ├── application.yml  # Configuration
-│       └── db/migration/    # Flyway migrations
-└── test/                    # Tests
-```
+#### `facilitymanagement.equipmentStateUpdateRequested`
+- **목적**: ControlTower 가 발행한 토픽. 장비 상태 업데이트 요청 이벤트 발행
+- **발행 시점**: 장비 정보 변경 요청 시
+- **이벤트 구조**:
+  ```json
+  {
+    "version": 1,
+    "request_id": "REQ_XYZ789",
+    "equipment_id": "EQ001",
+    "facility_id": "FAC001",
+    "changes": {
+      "status_code": "MAINTENANCE",
+      "equipment_location": "1층 소화기실"
+    },
+    "requested_at": "2025-08-21T09:00:00Z",
+    "requested_by": "admin"
+  }
+  ```
