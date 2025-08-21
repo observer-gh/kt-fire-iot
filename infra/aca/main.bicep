@@ -176,10 +176,16 @@ resource postgresDatalakeServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-
     storage: {
       storageSizeGB: 32
     }
-    network: {
-      delegatedSubnetResourceId: vnet.properties.subnets[1].id
-      privateDnsZoneArmResourceId: privateDnsZone.id
-    }
+  }
+}
+
+// DataLake 메인 데이터베이스 생성
+resource datalakeDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-06-01-preview' = {
+  parent: postgresDatalakeServer
+  name: 'datalake'
+  properties: {
+    charset: 'UTF8'
+    collation: 'en_US.utf8'
   }
 }
 
@@ -198,10 +204,16 @@ resource postgresFacilityManagementServer 'Microsoft.DBforPostgreSQL/flexibleSer
     storage: {
       storageSizeGB: 32
     }
-    network: {
-      delegatedSubnetResourceId: vnet.properties.subnets[1].id
-      privateDnsZoneArmResourceId: privateDnsZone.id
-    }
+  }
+}
+
+// FacilityManagement 메인 데이터베이스 생성
+resource facilityManagementDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-06-01-preview' = {
+  parent: postgresFacilityManagementServer
+  name: 'facilitymanagement'
+  properties: {
+    charset: 'UTF8'
+    collation: 'en_US.utf8'
   }
 }
 
@@ -247,8 +259,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: 'fire-iot-plan-${environment}'
   location: location
   sku: {
-    name: 'B3'
-    tier: 'Basic'
+    name: 'P1v3'
+    tier: 'PremiumV3'
   }
   properties: {
     reserved: true  // Linux
@@ -334,9 +346,8 @@ resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'REDIS_URL'
-          value: 'redis://${redisCache.properties.hostName}:6380'
+          value: 'rediss://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
         }
-
         {
           name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
@@ -373,9 +384,8 @@ resource dataLakeDashboardApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'REDIS_URL'
-          value: 'redis://${redisCache.properties.hostName}:6380'
+          value: 'redis://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
         }
-
         {
           name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
@@ -408,7 +418,7 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'REDIS_URL'
-          value: 'redis://${redisCache.properties.hostName}:6380'
+          value: 'redis://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
         }
         {
           name: 'EVENTHUB_CONN'

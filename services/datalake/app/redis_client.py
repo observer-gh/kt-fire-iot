@@ -1,9 +1,12 @@
 import redis
 import logging
 import json
+import re
 from typing import Optional, Any, List, Dict
 from datetime import datetime
+from urllib.parse import urlparse
 from .config import settings
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -12,72 +15,103 @@ class RedisClient:
     
     def __init__(self):
         self.client: Optional[redis.Redis] = None
+        redis_url = settings.redis_url
+        print('asddfdff', redis_url)
         self._connect()
     
     def _connect(self):
-        """Establish Redis connection"""
+        """Redis 연결 설정 및 연결"""
         try:
-            # Parse Redis URL
-            if settings.redis_url.startswith('redis://'):
-                # Remove 'redis://' prefix and parse
-                url_parts = settings.redis_url[8:].split('@')
-                if len(url_parts) == 2:
-                    # Format: redis://password@host:port
-                    password, host_port = url_parts
-                    if ':' in host_port:
-                        host, port = host_port.split(':')
-                        self.client = redis.Redis(
-                            host=host,
-                            port=int(port),
-                            password=password if password else None,
-                            decode_responses=True,
-                            socket_connect_timeout=5,
-                            socket_timeout=5
-                        )
-                    else:
-                        self.client = redis.Redis(
-                            host=host_port,
-                            password=password if password else None,
-                            decode_responses=True,
-                            socket_connect_timeout=5,
-                            socket_timeout=5
-                        )
-                else:
-                    # Format: redis://host:port
-                    host_port = url_parts[0]
-                    if ':' in host_port:
-                        host, port = host_port.split(':')
-                        self.client = redis.Redis(
-                            host=host,
-                            port=int(port),
-                            decode_responses=True,
-                            socket_connect_timeout=5,
-                            socket_timeout=5
-                        )
-                    else:
-                        self.client = redis.Redis(
-                            host=host_port,
-                            decode_responses=True,
-                            socket_connect_timeout=5,
-                            socket_timeout=5
-                        )
-            else:
-                # Fallback to default localhost
-                self.client = redis.Redis(
-                    host='localhost',
-                    port=6379,
-                    decode_responses=True,
-                    socket_connect_timeout=5,
-                    socket_timeout=5
-                )
+            # Redis URL을 환경변수나 설정에서 가져옴
+            redis_url = settings.redis_url
+            print(redis_url)
+            redis_url = 'rediss://:0IjI1IN6GmjPTjXk3B4pUJEB2DRRB936AAzCaFDskPk=@fire-iot-redis-dev.redis.cache.windows.net:6380'
+            if not redis_url:
+                logger.warning("REDIS_URL이 설정되지 않았습니다. Redis 연결을 건너뜁니다.")
+                return
             
-            # Test connection
+            # Redis URL 파싱
+            connection_params = self._parse_redis_url(redis_url)
+            print('asdf', connection_params)
+            
+            # Redis 클라이언트 생성 및 연결
+            self.client = redis.Redis(**connection_params)
+            
+            # 연결 테스트
             self.client.ping()
-            logger.info(f"Redis connected successfully to {settings.redis_url}")
+            logger.info("Redis 연결 성공")
             
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.error(f"Redis 연결 실패: {e}")
             self.client = None
+    
+    def _parse_redis_url(self, redis_url: str) -> Dict[str, Any]:
+        """Redis URL을 파싱하여 연결 파라미터로 변환"""
+        try:
+            # rediss:// 형식의 URL 파싱
+            if redis_url.startswith('rediss://'):
+                # SSL 연결을 위한 설정
+                parsed = urlparse(redis_url)
+                
+                # 비밀번호 추출 (URL 인코딩된 형태)
+                password = parsed.password
+                if password:
+                    # URL 디코딩
+                    import urllib.parse
+                    password = urllib.parse.unquote(password)
+                
+                # 호스트와 포트 추출
+                host = parsed.hostname
+                port = parsed.port or 6380  # 기본 포트
+                
+                connection_params = {
+                    'host': host,
+                    'port': port,
+                    'password': password,
+                    'ssl': True,
+                    'ssl_cert_reqs': None,  # SSL 인증서 검증 비활성화 (Azure Redis용)
+                    'decode_responses': True,  # 응답을 자동으로 디코딩
+                    # 'socket_connect_timeout': 10,
+                    # 'socket_timeout': 10,
+                    'retry_on_timeout': True,
+                    'health_check_interval': 30
+                }
+                
+                logger.debug(f"Redis 연결 파라미터: host={host}, port={port}, ssl=True")
+                return connection_params
+                
+            else:
+                # 일반 redis:// 형식 처리
+                parsed = urlparse(redis_url)
+                connection_params = {
+                    'host': parsed.hostname,
+                    'port': parsed.port or 6379,
+                    'password': parsed.password,
+                    'decode_responses': True,
+                    'socket_connect_timeout': 10,
+                    'socket_timeout': 10,
+                    'retry_on_timeout': True,
+                    'health_check_interval': 30
+                }
+                
+                logger.debug(f"Redis 연결 파라미터: host={parsed.hostname}, port={parsed.port}")
+                return connection_params
+                
+        except Exception as e:
+            logger.error(f"Redis URL 파싱 실패: {e}")
+            raise ValueError(f"잘못된 Redis URL 형식: {redis_url}")
+    
+    def reconnect(self) -> bool:
+        """Redis 재연결 시도"""
+        try:
+            if self.client:
+                self.client.close()
+            
+            self._connect()
+            return self.is_connected()
+        except Exception as e:
+            logger.error(f"Redis 재연결 실패: {e}")
+            return False
     
     def is_connected(self) -> bool:
         """Check if Redis is connected"""

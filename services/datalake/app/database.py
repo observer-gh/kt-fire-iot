@@ -15,15 +15,35 @@ def get_pool():
     global _pool
     if _pool is None:
         try:
-            _pool = SimpleConnectionPool(
-                minconn=1,
-                maxconn=10,
-                host=settings.postgres_host,
-                port=settings.postgres_port,
-                database=settings.postgres_db,
-                user=settings.postgres_user,
-                password=settings.postgres_password
-            )
+            # If POSTGRES_URL is provided, use it directly
+            if settings.postgres_url:
+                logger.info("Using POSTGRES_URL for database connection")
+                # Log connection info safely (without password)
+                url_parts = settings.postgres_url.split('@')
+                if len(url_parts) > 1:
+                    host_part = url_parts[1]
+                    logger.info(f"Connecting to database at: {host_part}")
+                else:
+                    logger.info("Connecting to database using POSTGRES_URL")
+                
+                # For URL-based connection, we'll create a simple pool that uses the URL
+                _pool = SimpleConnectionPool(
+                    minconn=1,
+                    maxconn=10,
+                    dsn=settings.postgres_url
+                )
+            else:
+                # Fallback to individual connection parameters
+                logger.info(f"Using individual connection parameters: host={settings.postgres_host}, port={settings.postgres_port}, db={settings.postgres_db}, user={settings.postgres_user}")
+                _pool = SimpleConnectionPool(
+                    minconn=1,
+                    maxconn=10,
+                    host=settings.postgres_host,
+                    port=settings.postgres_port,
+                    database=settings.postgres_db,
+                    user=settings.postgres_user,
+                    password=settings.postgres_password
+                )
             logger.info("Database connection pool created successfully")
         except Exception as e:
             logger.error(f"Failed to create database connection pool: {e}")
