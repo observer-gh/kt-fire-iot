@@ -407,11 +407,39 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
+// Mock Server Web App
+resource mockServerApp 'Microsoft.Web/sites@2023-01-01' = {
+  name: '${appNamePrefix}-mock-server'
+  location: location
+  properties: {
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/kt-fire-iot-mock-server:${imageTag}'
+      appSettings: [
+        {
+          name: 'PROFILE'
+          value: 'cloud'
+        }
+        {
+          name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+          value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
+        }
+        {
+          name: 'WEBSITES_PORT'
+          value: '8001'
+        }
+      ]
+    }
+  }
+}
+
 // Outputs
 output controlTowerUrl string = 'https://${controlTowerApp.properties.defaultHostName}'
 output facilityManagementUrl string = 'https://${facilityManagementApp.properties.defaultHostName}'
 output dataLakeApiUrl string = 'https://${dataLakeApiApp.properties.defaultHostName}'
 output dataLakeDashboardUrl string = 'https://${dataLakeDashboardApp.properties.defaultHostName}'
+output alertUrl string = 'https://${alertApp.properties.defaultHostName}'
+output mockServerUrl string = 'https://${mockServerApp.properties.defaultHostName}'
 output dockerHubOrg string = dockerHubOrg
 output eventHubNamespace string = eventHubNamespace.name
 output postgresDatalakeServerFqdn string = postgresDatalakeServer.properties.fullyQualifiedDomainName

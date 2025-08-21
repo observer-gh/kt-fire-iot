@@ -14,6 +14,15 @@ The deployment creates the following Azure resources:
 - **Log Analytics Workspace** - Centralized logging
 - **Virtual Network** - Network isolation and security
 
+### Microservices Deployed
+
+- **ControlTower** - Central control and monitoring service
+- **FacilityManagement** - Equipment and maintenance management
+- **DataLake API** - Data ingestion and storage service
+- **DataLake Dashboard** - Data visualization and analytics
+- **Alert Service** - Alert management and notification
+- **Mock Server** - Test data generation and simulation service
+
 ## 📋 Prerequisites
 
 Before deploying, ensure you have:
@@ -98,10 +107,12 @@ param postgresAdminPassword = 'YourSecurePassword123!'
 
 The deployment expects these images to exist in Docker Hub:
 
-- `johnha97/controltower:latest`
-- `johnha97/facilitymanagement:latest`
-- `johnha97/datalake:latest`
-- `johnha97/alert:latest`
+- `johnha97/kt-fire-iot-controltower:latest`
+- `johnha97/kt-fire-iot-facilitymanagement:latest`
+- `johnha97/kt-fire-iot-datalake-api:latest`
+- `johnha97/kt-fire-iot-datalake-dashboard:latest`
+- `johnha97/kt-fire-iot-alert:latest`
+- `johnha97/kt-fire-iot-mock-server:latest`
 
 ### Building Images (if needed)
 
@@ -109,27 +120,39 @@ If images don't exist, build and push them first:
 
 ```bash
 # Build and push each service
-docker build -t johnha97/controltower:latest ./services/controltower/
-docker push johnha97/controltower:latest
+docker build -t johnha97/kt-fire-iot-controltower:latest ./services/controltower/
+docker push johnha97/kt-fire-iot-controltower:latest
 
-docker build -t johnha97/facilitymanagement:latest ./services/facilitymanagement/
-docker push johnha97/facilitymanagement:latest
+docker build -t johnha97/kt-fire-iot-facilitymanagement:latest ./services/facilitymanagement/
+docker push johnha97/kt-fire-iot-facilitymanagement:latest
 
-docker build -t johnha97/datalake:latest ./services/datalake/
-docker push johnha97/datalake:latest
+docker build -t johnha97/kt-fire-iot-datalake-api:latest -f ./services/datalake/Dockerfile.api ./services/datalake/
+docker push johnha97/kt-fire-iot-datalake-api:latest
 
-docker build -t johnha97/alert:latest ./services/alert/
-docker push johnha97/alert:latest
+docker build -t johnha97/kt-fire-iot-datalake-dashboard:latest -f ./services/datalake/Dockerfile.dashboard ./services/datalake/
+docker push johnha97/kt-fire-iot-datalake-dashboard:latest
+
+docker build -t johnha97/kt-fire-iot-alert:latest ./services/alert/
+docker push johnha97/kt-fire-iot-alert:latest
+
+docker build -t johnha97/kt-fire-iot-mock-server:latest ./services/mock-server/
+docker push johnha97/kt-fire-iot-mock-server:latest
 ```
 
 ## 🗄️ Database Schema
 
-The deployment creates a PostgreSQL database with these tables:
+The deployment creates two PostgreSQL databases:
 
-- **`sensor_data`** - IoT sensor readings (DataLake service)
-- **`alerts`** - Alert history and status (Alert service)
-- **`equipment`** - Equipment inventory and status (FacilityManagement service)
-- **`maintenance_requests`** - Maintenance scheduling (FacilityManagement service)
+### DataLake Database
+
+- **`sensor_data`** - IoT sensor readings and analytics data
+- **`anomaly_detection`** - Anomaly detection results and alerts
+
+### FacilityManagement Database
+
+- **`equipment`** - Equipment inventory and status
+- **`maintenance_requests`** - Maintenance scheduling and history
+- **`facilities`** - Facility information and locations
 
 ## 🔍 Monitoring
 
@@ -154,7 +177,10 @@ az deployment group show \
 # Test health endpoints
 curl https://your-controltower-url/health
 curl https://your-facilitymanagement-url/health
-curl https://your-datalake-url/health
+curl https://your-datalake-api-url/health
+curl https://your-datalake-dashboard-url/health
+curl https://your-alert-url/health
+curl https://your-mock-server-url/health
 ```
 
 ## 🧹 Cleanup
