@@ -1,0 +1,217 @@
+name: VideoAnalysis CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/videoanalysis/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/videoanalysis/**"
+  workflow_dispatch:
+
+jobs:
+  # PR에서는 빌드만 수행
+  build-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build VideoAnalysis image (PR)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/videoanalysis
+          push: false
+          tags: |
+            kt-fire-iot-videoanalysis:pr-${{ github.event.pull_request.number }}
+            kt-fire-iot-videoanalysis:${{ github.sha }}
+          cache-from: |
+            type=gha,scope=videoanalysis-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:buildcache
+          cache-to: type=gha,mode=max,scope=videoanalysis-build
+
+  # Push/Merge에서는 빌드, 푸시, 배포까지 수행
+  build-push-deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 배포 전 현재 latest의 SHA 저장
+      - name: Store current latest SHA
+        run: |
+          echo "📋 Storing current latest SHA for rollback..."
+          CURRENT_SHA=$(az webapp config container show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-videoanalysis \
+            --query "containerSettings.image" \
+            --output tsv 2>/dev/null | grep -o '[a-f0-9]\{40\}' || echo "latest")
+          echo "CURRENT_SHA=$CURRENT_SHA" >> $GITHUB_ENV
+          echo "📋 Current latest SHA: $CURRENT_SHA"
+
+      - name: Build and Push VideoAnalysis image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/videoanalysis
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:buildcache
+          cache-from: |
+            type=gha,scope=videoanalysis-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:buildcache
+          cache-to: |
+            type=gha,mode=max,scope=videoanalysis-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:buildcache,mode=max
+
+      # 배포 단계 추가
+      - name: Deploy VideoAnalysis service
+        run: |
+          echo "🚀 Deploying VideoAnalysis service to Azure Web App Container..."
+          echo "📦 Image: ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:${{ github.sha }}"
+          echo "⏰ Deployment time: $(date)"
+
+          # Azure Web App Container에 배포
+          echo "☁️ Starting deployment to Azure Web App Container..."
+
+          # Azure 로그인
+          echo "🔐 Logging into Azure..."
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > azure_credentials.json
+          az login --service-principal \
+            --username $(cat azure_credentials.json | jq -r .clientId) \
+            --password $(cat azure_credentials.json | jq -r .clientSecret) \
+            --tenant $(cat azure_credentials.json | jq -r .tenantId)
+
+          # 구독 설정
+          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+          # 새로운 Azure CLI 옵션으로 배포
+          az webapp config container set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-videoanalysis \
+            --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:${{ github.sha }} \
+            --container-registry-url https://index.docker.io/v1/ \
+            --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+            --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+
+          # 서비스 재시작 (새 이미지 적용)
+          echo "🔄 Restarting VideoAnalysis service to apply new image..."
+          az webapp restart \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-videoanalysis
+
+          # 재시작 후 잠시 대기
+          echo "⏳ Waiting for service to restart..."
+          sleep 30
+
+          # 헬스 체크 및 배포 검증
+          echo "🏥 Performing health check..."
+          HEALTH_CHECK_RETRIES=3
+          HEALTH_CHECK_DELAY=10
+
+          for i in $(seq 1 $HEALTH_CHECK_RETRIES); do
+            echo "🔍 Health check attempt $i/$HEALTH_CHECK_RETRIES..."
+            
+            # Web App 상태 확인
+            WEBAPP_STATUS=$(az webapp show \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-videoanalysis \
+              --query "state" \
+              --output tsv)
+            
+            if [ "$WEBAPP_STATUS" = "Running" ]; then
+              echo "✅ Web App is running successfully!"
+              break
+            else
+              echo "⚠️ Web App status: $WEBAPP_STATUS"
+              if [ $i -lt $HEALTH_CHECK_RETRIES ]; then
+                echo "⏳ Waiting $HEALTH_CHECK_DELAY seconds before retry..."
+                sleep $HEALTH_CHECK_DELAY
+              else
+                echo "❌ Health check failed after $HEALTH_CHECK_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+          echo "✅ Health check passed!"
+
+          # 배포 상태 확인
+          echo "🔍 Checking deployment status..."
+          az webapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-videoanalysis \
+            --query "{name:name, state:state, defaultHostName:defaultHostName, lastModifiedTime:lastModifiedTime}" \
+            --output table
+
+          echo "✅ VideoAnalysis service deployment to Azure Web App Container completed successfully!"
+
+  # 실패 시 롤백 job
+  rollback-on-failure:
+    if: failure()
+    needs: build-push-deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Rollback VideoAnalysis service
+        run: |
+          echo "🔄 Rolling back VideoAnalysis service due to deployment failure..."
+
+          # Azure 로그인
+          echo "🔐 Logging into Azure for rollback..."
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > azure_credentials.json
+          az login --service-principal \
+            --username $(cat azure_credentials.json | jq -r .clientId) \
+            --password $(cat azure_credentials.json | jq -r .clientSecret) \
+            --tenant $(cat azure_credentials.json | jq -r .tenantId)
+
+          # 구독 설정
+          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+          # 이전 버전으로 롤백 (저장된 SHA 또는 latest)
+          if [ "${{ env.CURRENT_SHA }}" != "latest" ]; then
+            echo "🔄 Rolling back to previous SHA: ${{ env.CURRENT_SHA }}"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-videoanalysis \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:${{ env.CURRENT_SHA }} \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          else
+            echo "🔄 Rolling back to latest tag"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-videoanalysis \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-videoanalysis:latest \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          fi
+
+          # 롤백 후 서비스 재시작
+          echo "🔄 Restarting service after rollback..."
+          az webapp restart \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-videoanalysis
+
+          echo "✅ Rollback completed successfully!"
