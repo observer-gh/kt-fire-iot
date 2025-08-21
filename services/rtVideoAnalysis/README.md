@@ -47,6 +47,18 @@ docker build -t rtvideoanalysis .
 docker run --env-file .env rtvideoanalysis
 ```
 
+## Testing
+
+```bash
+# Test Azure Vision integration
+PYTHONPATH=. python tests/test_azure_vision.py
+
+# Run all tests
+PYTHONPATH=. python -m pytest tests/ -v
+```
+
+**Note**: Use `PYTHONPATH=.` to ensure the `src` module can be imported from tests.
+
 ## Events
 
 Publishes `rtVideoAnalysis.fireDetected` events when fire is detected.

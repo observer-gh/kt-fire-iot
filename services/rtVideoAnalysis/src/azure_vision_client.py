@@ -24,11 +24,11 @@ class AzureVisionClient:
             dict: Detection result with confidence and details
         """
         try:
-            # Convert to bytes if PIL Image
+            # Convert to file-like object if PIL Image
             if hasattr(image_data, 'save'):
                 img_byte_arr = io.BytesIO()
                 image_data.save(img_byte_arr, format='JPEG')
-                img_byte_arr = img_byte_arr.getvalue()
+                img_byte_arr.seek(0)  # Reset position to beginning
             else:
                 img_byte_arr = image_data
 
@@ -43,8 +43,8 @@ class AzureVisionClient:
             return {
                 'detected': fire_confidence > 0,
                 'confidence': fire_confidence,
-                'objects': [obj.name for obj in result.objects],
-                'tags': [tag.name for tag in result.tags]
+                'objects': [obj.object_property if hasattr(obj, 'object_property') else str(obj) for obj in result.objects],
+                'tags': [tag.name if hasattr(tag, 'name') else str(tag) for tag in result.tags]
             }
 
         except Exception as e:
@@ -70,12 +70,12 @@ class AzureVisionClient:
 
         # Check objects
         for obj in result.objects:
-            if obj.name.lower() in fire_keywords:
+            if hasattr(obj, 'object_property') and obj.object_property.lower() in fire_keywords:
                 confidence = max(confidence, int(obj.confidence * 100))
 
         # Check tags
         for tag in result.tags:
-            if tag.name.lower() in fire_keywords:
+            if hasattr(tag, 'name') and tag.name.lower() in fire_keywords:
                 confidence = max(confidence, int(tag.confidence * 100))
 
         return confidence

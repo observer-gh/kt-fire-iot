@@ -3,8 +3,8 @@ import cv2
 import time
 import threading
 from datetime import datetime
-from azure_vision_client import AzureVisionClient
-from event_publisher import EventPublisher
+from .azure_vision_client import AzureVisionClient
+from .event_publisher import EventPublisher
 
 logger = logging.getLogger(__name__)
 
