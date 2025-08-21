@@ -14,7 +14,8 @@ try:
     AZURE_AVAILABLE = True
 except ImportError:
     AZURE_AVAILABLE = False
-    logger.warning("Azure Event Hub client not available. Install azure-eventhub for cloud support.")
+    logger.warning(
+        "Azure Event Hub client not available. Install azure-eventhub for cloud support.")
 
 
 class EventPublisher:
@@ -25,7 +26,7 @@ class EventPublisher:
         self.environment = Config.ENVIRONMENT
         self.producer = None
         self.eventhub_client = None
-        
+
         if self.environment == 'local':
             self._init_kafka_producer()
         else:
@@ -39,7 +40,8 @@ class EventPublisher:
                 value_serializer=lambda x: json.dumps(x).encode('utf-8'),
                 key_serializer=lambda x: x.encode('utf-8') if x else None
             )
-            logger.info(f"Kafka producer initialized with servers: {Config.KAFKA_BOOTSTRAP_SERVERS}")
+            logger.info(
+                f"Kafka producer initialized with servers: {Config.KAFKA_BOOTSTRAP_SERVERS}")
         except Exception as e:
             logger.error(f"Failed to initialize Kafka producer: {e}")
             self.producer = None
@@ -47,16 +49,20 @@ class EventPublisher:
     def _init_eventhub_client(self):
         """Initialize Azure Event Hub client for cloud deployment"""
         if not AZURE_AVAILABLE:
-            logger.error("Azure Event Hub client not available. Cannot initialize for cloud environment.")
+            logger.error(
+                "Azure Event Hub client not available. Cannot initialize for cloud environment.")
             return
-            
-        if not Config.EVENTHUB_CONNECTION_STRING:
-            logger.error("EVENTHUB_CONNECTION_STRING not provided")
+
+        if not Config.EVENTHUB_CONN:
+            logger.error(
+                "EVENTHUB_CONNECTION_STRING not provided. Check EVENTHUB_CONN environment variable.")
+            logger.info(
+                "Available environment variables: EVENTHUB_CONNECTION_STRING, EVENTHUB_CONN")
             return
-            
+
         try:
             self.eventhub_client = EventHubProducerClient.from_connection_string(
-                Config.EVENTHUB_CONNECTION_STRING,
+                Config.EVENTHUB_CONN,
                 eventhub_name=Config.EVENTHUB_FIRE_DETECTED_TOPIC
             )
             logger.info("Azure Event Hub client initialized")
@@ -145,14 +151,15 @@ class EventPublisher:
         try:
             # Create Event Hub event data
             event_data = EventData(json.dumps(event))
-            
+
             # Send to Event Hub
             with self.eventhub_client:
                 event_data_batch = self.eventhub_client.create_batch()
                 event_data_batch.add(event_data)
                 self.eventhub_client.send_batch(event_data_batch)
 
-            logger.info(f"Fire event published to Event Hub - Topic: {Config.EVENTHUB_FIRE_DETECTED_TOPIC}")
+            logger.info(
+                f"Fire event published to Event Hub - Topic: {Config.EVENTHUB_FIRE_DETECTED_TOPIC}")
             return True
 
         except Exception as e:

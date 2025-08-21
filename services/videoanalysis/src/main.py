@@ -8,6 +8,7 @@ from .frame_processor import FrameProcessor
 from .models import ControlMessage
 from .azure_vision_client import AzureVisionClient
 from .event_publisher import EventPublisher
+from .health_server import HealthServer
 
 
 class VideoAnalysisService:
@@ -42,6 +43,10 @@ class VideoAnalysisService:
         self.ws_client = StompWebSocketClient(
             self.frame_processor.process_frame)
         self.event_publisher = event_publisher
+
+        # Initialize health server
+        self.health_server = HealthServer(self.frame_processor, self.ws_client)
+
         self.running = False
 
         # Setup signal handlers for graceful shutdown
@@ -56,15 +61,22 @@ class VideoAnalysisService:
     def start(self):
         """Start the video analysis service"""
         logger.info("Starting Video Analysis Service")
-        logger.info(f"Connecting to: {Config.WEBSOCKET_URL}")
+        self.running = True
 
-        try:
-            # Connect to WebSocket
-            if not self.ws_client.connect():
-                logger.error("Failed to connect to WebSocket server")
-                return False
+        # Start health server
+        self.health_server.start()
 
-            self.running = True
+        # Main service loop with WebSocket reconnection logic
+        self._run_service_loop()
+
+        return True
+
+    def _try_connect_websocket(self):
+        """Try to connect to WebSocket with retry logic"""
+        logger.info(f"Attempting to connect to: {Config.WEBSOCKET_URL}")
+
+        if self.ws_client.connect():
+            logger.info("WebSocket connected successfully")
 
             # Wait a moment for connection to stabilize
             time.sleep(2)
@@ -78,33 +90,46 @@ class VideoAnalysisService:
             if self.ws_client.send_control_command(start_command):
                 logger.info(
                     f"Requested video stream: {Config.DEFAULT_VIDEO_FILE}")
+                return True
             else:
                 logger.error("Failed to start video stream")
                 return False
-
-            # Main service loop
-            self._run_service_loop()
-
-        except Exception as e:
-            logger.error(f"Service error: {e}")
+        else:
+            logger.warning(
+                "Failed to connect to WebSocket server - will retry later")
             return False
 
-        return True
-
     def _run_service_loop(self):
-        """Main service loop"""
-        logger.info("Service started successfully. Processing frames...")
+        """Main service loop with WebSocket reconnection logic"""
+        logger.info("Service started successfully. Entering main loop...")
+
+        websocket_connected = False
+        last_connection_attempt = 0
+        connection_retry_interval = 30  # Retry every 30 seconds
 
         try:
             while self.running:
-                # Service is event-driven (frames processed in callbacks)
-                # Just keep alive and log stats periodically
-                time.sleep(10)
+                current_time = time.time()
 
+                # Try to connect to WebSocket if not connected
+                if not websocket_connected and (current_time - last_connection_attempt) >= connection_retry_interval:
+                    last_connection_attempt = current_time
+                    websocket_connected = self._try_connect_websocket()
+
+                # Check if WebSocket is still connected
+                if websocket_connected and not self.ws_client.is_connected():
+                    logger.warning("WebSocket connection lost - will retry")
+                    websocket_connected = False
+
+                # Log stats periodically
                 if self.running:
                     stats = self.frame_processor.get_frame_stats()
+                    connection_status = "connected" if websocket_connected else "disconnected"
                     logger.info(
-                        f"Frames processed: {stats['total_frames_processed']}")
+                        f"Service status: WebSocket {connection_status}, Frames processed: {stats['total_frames_processed']}")
+
+                # Sleep before next iteration
+                time.sleep(10)
 
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
@@ -127,6 +152,10 @@ class VideoAnalysisService:
 
         # Disconnect WebSocket
         self.ws_client.disconnect()
+
+        # Stop health server
+        if hasattr(self, 'health_server'):
+            self.health_server.stop()
 
         # Close event publisher
         if hasattr(self, 'event_publisher'):
