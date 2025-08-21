@@ -372,6 +372,35 @@ resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'KAFKA_TOPIC_EMERGENCY_ALERT'
           value: 'controlTower.emergencyAlertIssued'
         }
+        // Additional alert topics
+        {
+          name: 'KAFKA_TOPIC_ALERT_SUCCESS'
+          value: 'alert.alertSendSuccess'
+        }
+        {
+          name: 'KAFKA_TOPIC_ALERT_FAIL'
+          value: 'alert.alertSendFail'
+        }
+        {
+          name: 'KAFKA_TOPIC_WARNING_NOTIFICATION'
+          value: 'alert.warningNotificationCreated'
+        }
+        {
+          name: 'KAFKA_TOPIC_EMERGENCY_TRIGGERED'
+          value: 'alert.emergencyAlertTriggered'
+        }
+        {
+          name: 'KAFKA_TOPIC_EQUIPMENT_UPDATE'
+          value: 'controlTower.equipmentStateUpdateRequested'
+        }
+        {
+          name: 'KAFKA_TOPIC_MAINTENANCE'
+          value: 'facilityManagement.maintenanceRequested'
+        }
+        {
+          name: 'KAFKA_TOPIC_DATA_SAVED'
+          value: 'dataLake.sensorDataSaved'
+        }
         // Legacy Event Hub connection for backward compatibility
         {
           name: 'EVENTHUB_CONNECTION_STRING'
@@ -538,7 +567,7 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'alert.alertSendFail'
         }
         {
-          name: 'EVENTHUB_CONN'
+          name: 'ALERT_AZURE_EVENTHUB_CONNECTION_STRING'
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
         {

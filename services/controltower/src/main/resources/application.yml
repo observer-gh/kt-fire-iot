@@ -44,7 +44,7 @@ springdoc:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
-        spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,datalake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
+        spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,dataLake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -54,11 +54,11 @@ springdoc:
       "[sasl.mechanism]": ${KAFKA_SASL_MECHANISM:}
       "[sasl.jaas.config]": ${KAFKA_SASL_CONFIG:}
     topics:
-      sensor-anomaly-detected: ${KAFKA_TOPIC_SENSOR_ANOMALY:datalake.sensorDataAnomalyDetected}
+      sensor-anomaly-detected: ${KAFKA_TOPIC_SENSOR_ANOMALY:dataLake.sensorDataAnomalyDetected}
       video-fire-detected: ${KAFKA_TOPIC_VIDEO_FIRE:videoAnalysis.fireDetected}
       fire-detection-notified: ${KAFKA_TOPIC_FIRE_NOTIFY:controlTower.fireDetectionNotified}
-      warning-alert-issued: ${KAFKA_TOPIC_WARNING_ALERT:controltower.warningAlertIssued}
-      emergency-alert-issued: ${KAFKA_TOPIC_EMERGENCY_ALERT:controltower.emergencyAlertIssued}
+      warning-alert-issued: ${KAFKA_TOPIC_WARNING_ALERT:controlTower.warningAlertIssued}
+      emergency-alert-issued: ${KAFKA_TOPIC_EMERGENCY_ALERT:controlTower.emergencyAlertIssued}
 
 # Logging
 logging:
@@ -84,7 +84,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
-        spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,datalake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
+        spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,dataLake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -108,7 +108,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
-        spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,datalake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
+        spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,dataLake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer

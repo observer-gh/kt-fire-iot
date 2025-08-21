@@ -10,8 +10,8 @@ from kafka import KafkaProducer
 
 # Kafka configuration
 KAFKA_BOOTSTRAP_SERVERS = 'localhost:9092'
-WARNING_TOPIC = 'WarningNotificationCreated'
-EMERGENCY_TOPIC = 'EmergencyAlertTriggered'
+WARNING_TOPIC = 'alert.warningNotificationCreated'
+EMERGENCY_TOPIC = 'alert.emergencyAlertTriggered'
 
 
 def create_test_message(alert_type='warning', severity='MEDIUM'):

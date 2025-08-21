@@ -24,9 +24,9 @@ class AlertWorker:
             
             # Determine topic based on severity and message content
             if severity == 'EMERGENCY' or 'emergency' in event_type.lower():
-                topic = 'controltower.emergencyAlertIssued'
+                topic = 'controlTower.emergencyAlertIssued'
             else:
-                topic = 'controltower.warningAlertIssued'
+                topic = 'controlTower.warningAlertIssued'
 
             logger.info(
                 f"Processing {topic} message: {message.get('alert_id', 'unknown')}")

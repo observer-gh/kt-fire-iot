@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     
     # Kafka settings
     kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "kafka:29092")
-    kafka_topic_anomaly: str = os.getenv("KAFKA_TOPIC_ANOMALY", "datalake.sensorDataAnomalyDetected")
-    kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "datalake.sensorDataSaved")
+    kafka_topic_anomaly: str = os.getenv("KAFKA_TOPIC_ANOMALY", "dataLake.sensorDataAnomalyDetected")
+    kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "dataLake.sensorDataSaved")
     
     # Mock Server settings
     mock_server_url: str = os.getenv("MOCK_SERVER_URL", "http://localhost:8081")
