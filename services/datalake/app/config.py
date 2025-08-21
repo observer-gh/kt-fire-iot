@@ -18,9 +18,14 @@ class Settings(BaseSettings):
     redis_flush_interval_seconds: int = int(os.getenv("REDIS_FLUSH_INTERVAL_SECONDS", "60"))
     
     # Kafka settings
-    kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "kafka:29092")
+    kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "localhost:9092")
     kafka_topic_anomaly: str = os.getenv("KAFKA_TOPIC_ANOMALY", "dataLake.sensorDataAnomalyDetected")
     kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "dataLake.sensorDataSaved")
+    kafka_topic_fire_detection: str = os.getenv("KAFKA_TOPIC_FIRE_DETECTION", "controlTower.fireDetectionNotified")
+    
+    # Event Hub settings (for Azure cloud deployment)
+    eventhub_connection_string: Optional[str] = os.getenv("EVENTHUB_CONN")
+    eventhub_consumer_group: str = os.getenv("EVENTHUB_CONSUMER_GROUP", "datalake-dashboard")
     
     # Mock Server settings
     mock_server_url: str = os.getenv("MOCK_SERVER_URL", "http://localhost:8081")
