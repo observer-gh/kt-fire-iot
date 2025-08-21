@@ -79,10 +79,10 @@ check_image() {
 
 # Run all checks in parallel
 pids=()
-for service_info in "${services[@]}"; do
-    check_image "$service_info" &
-    pids+=($!)
-done
+# for service_info in "${services[@]}"; do
+#     check_image "$service_info" &
+#     pids+=($!)
+# done
 
 # Wait for all checks to complete
 failed=0

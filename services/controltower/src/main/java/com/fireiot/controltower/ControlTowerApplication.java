@@ -7,7 +7,20 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class ControlTowerApplication {
 
     public static void main(String[] args) {
+        try {
+            SpringApplication app = new SpringApplication(ControlTowerApplication.class);
 
-        SpringApplication.run(ControlTowerApplication.class, args);
+            // Set default profile if none specified
+            if (System.getProperty("spring.profiles.active") == null
+                    && System.getenv("SPRING_PROFILES_ACTIVE") == null) {
+                app.setAdditionalProfiles("local");
+            }
+
+            app.run(args);
+        } catch (Exception e) {
+            System.err.println("Failed to start ControlTower application: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
 }

@@ -120,16 +120,6 @@ resource sensorAnomalyDetectedTopic 'Microsoft.EventHub/namespaces/eventhubs@202
   }
 }
 
-resource sensorDataSavedTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
-  parent: eventHubNamespace
-  name: 'dataLake.sensorDataSaved'
-  properties: {
-    messageRetentionInDays: 7
-    partitionCount: 4
-    status: 'Active'
-  }
-}
-
 // Video Analysis Fire Detection Topic (matching contract filename)
 resource videoAnalysisFireDetectedTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
   parent: eventHubNamespace
@@ -165,27 +155,6 @@ resource warningAlertTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-p
 resource emergencyAlertTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
   parent: eventHubNamespace
   name: 'controlTower.emergencyAlertIssued'
-  properties: {
-    messageRetentionInDays: 7
-    partitionCount: 4
-    status: 'Active'
-  }
-}
-
-// Alert Service Result Topics (matching contract filenames)
-resource alertSuccessTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
-  parent: eventHubNamespace
-  name: 'alert.alertSendSuccess'
-  properties: {
-    messageRetentionInDays: 7
-    partitionCount: 4
-    status: 'Active'
-  }
-}
-
-resource alertFailTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
-  parent: eventHubNamespace
-  name: 'alert.alertSendFail'
   properties: {
     messageRetentionInDays: 7
     partitionCount: 4
@@ -325,7 +294,7 @@ resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'SPRING_PROFILES_ACTIVE'
           value: 'cloud'
         }
-        // Kafka/Event Hub Connection Configuration
+        // Minimal Kafka/Event Hub Connection
         {
           name: 'KAFKA_BOOTSTRAP_SERVERS'
           value: '${eventHubNamespace.name}.servicebus.windows.net:9093'
@@ -342,27 +311,22 @@ resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'KAFKA_SASL_CONFIG'
           value: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="$ConnectionString" password="${eventHubAuthRule.listKeys().primaryConnectionString}";'
         }
-        // Consumer Configuration
         {
           name: 'KAFKA_CONSUMER_GROUP_ID'
           value: 'controltower-group'
         }
-        {
-          name: 'KAFKA_AUTO_OFFSET_RESET'
-          value: 'earliest'
-        }
-        // Topic Mappings (matching contract filenames)
+        // Only the topics Control Tower actually uses
         {
           name: 'KAFKA_TOPIC_SENSOR_ANOMALY'
-          value: 'dataLake.sensorDataAnomalyDetected'
+          value: sensorAnomalyDetectedTopic.name
         }
         {
           name: 'KAFKA_TOPIC_VIDEO_FIRE'
-          value: 'videoAnalysis.fireDetected'
+          value: videoAnalysisFireDetectedTopic.name
         }
         {
           name: 'KAFKA_TOPIC_FIRE_NOTIFY'
-          value: 'controlTower.fireDetectionNotified'
+          value: controlTowerFireNotifiedTopic.name
         }
         {
           name: 'KAFKA_TOPIC_WARNING_ALERT'
@@ -371,40 +335,6 @@ resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'KAFKA_TOPIC_EMERGENCY_ALERT'
           value: 'controlTower.emergencyAlertIssued'
-        }
-        // Additional alert topics
-        {
-          name: 'KAFKA_TOPIC_ALERT_SUCCESS'
-          value: 'alert.alertSendSuccess'
-        }
-        {
-          name: 'KAFKA_TOPIC_ALERT_FAIL'
-          value: 'alert.alertSendFail'
-        }
-        {
-          name: 'KAFKA_TOPIC_WARNING_NOTIFICATION'
-          value: 'alert.warningNotificationCreated'
-        }
-        {
-          name: 'KAFKA_TOPIC_EMERGENCY_TRIGGERED'
-          value: 'alert.emergencyAlertTriggered'
-        }
-        {
-          name: 'KAFKA_TOPIC_EQUIPMENT_UPDATE'
-          value: 'controlTower.equipmentStateUpdateRequested'
-        }
-        {
-          name: 'KAFKA_TOPIC_MAINTENANCE'
-          value: 'facilityManagement.maintenanceRequested'
-        }
-        {
-          name: 'KAFKA_TOPIC_DATA_SAVED'
-          value: 'dataLake.sensorDataSaved'
-        }
-        // Legacy Event Hub connection for backward compatibility
-        {
-          name: 'EVENTHUB_CONNECTION_STRING'
-          value: eventHubAuthRule.listKeys().primaryConnectionString
         }
         {
           name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
@@ -617,7 +547,7 @@ resource mockServerApp 'Microsoft.Web/sites@2023-01-01' = {
       linuxFxVersion: 'DOCKER|${dockerHubOrg}/kt-fire-iot-mock-server:${imageTag}'
       appSettings: [
         {
-          name: 'PROFILE'
+          name: 'SPRING_PROFILES_ACTIVE'
           value: 'cloud'
         }
         {
@@ -703,15 +633,11 @@ output dockerHubOrg string = dockerHubOrg
 output eventHubNamespace string = eventHubNamespace.name
 output eventHubConnectionString string = eventHubAuthRule.listKeys().primaryConnectionString
 output sensorAnomalyDetectedTopic string = sensorAnomalyDetectedTopic.name
-output sensorDataSavedTopic string = sensorDataSavedTopic.name
 output videoAnalysisFireDetectedTopic string = videoAnalysisFireDetectedTopic.name
 output controlTowerFireNotifiedTopic string = controlTowerFireNotifiedTopic.name
 output warningAlertTopic string = warningAlertTopic.name
 output emergencyAlertTopic string = emergencyAlertTopic.name
-output alertSuccessTopic string = alertSuccessTopic.name
-output alertFailTopic string = alertFailTopic.name
 output postgresDatalakeServerFqdn string = postgresDatalakeServer.properties.fullyQualifiedDomainName
-output postgresFacilityManagementServerFqdn string = postgresFacilityManagementServer.properties.fullyQualifiedDomainName
 output redisHostName string = redisCache.properties.hostName
 output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
 output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
