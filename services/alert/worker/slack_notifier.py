@@ -70,6 +70,24 @@ class SlackNotifier:
                 error_message=str(e)
             )
 
+    def send_heartbeat(self):
+        """Send heartbeat message to Slack"""
+        if not self.client:
+            logger.info("Heartbeat message (not sent): Slack not configured")
+            return
+
+        try:
+            message = "💓 Alert service alive"
+            response = self.client.send(text=message)
+
+            if response.status_code == 200:
+                logger.debug("Heartbeat message sent successfully")
+            else:
+                logger.warning(f"Failed to send heartbeat: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Error sending heartbeat: {e}")
+
     def _format_message(self, alert_data: Dict[str, Any], topic: str) -> str:
         """Format alert data into Slack message"""
         # Kafka 메시지는 직접 루트에 필드들이 있음 (data 필드 없음)

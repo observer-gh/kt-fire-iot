@@ -14,6 +14,7 @@ class AlertWorker:
         self.running = False
         self.slack_notifier = SlackNotifier()
         self.consumer = MessageConsumer(self._handle_message)
+        self.heartbeat_task = None
 
     def _handle_message(self, message: Dict[str, Any]):
         """Handle incoming alert messages"""
@@ -37,12 +38,26 @@ class AlertWorker:
         except Exception as e:
             logger.error(f"Error handling message: {e}")
 
+    async def _heartbeat_task(self):
+        """Send heartbeat message every 10 seconds"""
+        while self.running:
+            try:
+                self.slack_notifier.send_heartbeat()
+                await asyncio.sleep(10)
+            except Exception as e:
+                logger.error(f"Error in heartbeat task: {e}")
+                await asyncio.sleep(10)
+
     async def start(self):
         """Start the alert worker"""
         self.running = True
         logger.info("Alert worker started")
 
         try:
+            # Start heartbeat task
+            self.heartbeat_task = asyncio.create_task(self._heartbeat_task())
+            
+            # Start consumer
             await self.consumer.start()
         except Exception as e:
             logger.error(f"Error in alert worker: {e}")
@@ -51,6 +66,15 @@ class AlertWorker:
     async def stop(self):
         """Stop the alert worker"""
         self.running = False
+        
+        # Cancel heartbeat task
+        if self.heartbeat_task:
+            self.heartbeat_task.cancel()
+            try:
+                await self.heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        
         await self.consumer.stop()
         
         # Close Kafka producer
