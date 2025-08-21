@@ -50,7 +50,7 @@ public class MaintenanceBatchService {
       // 1개월 이하로 만료되는 장비 조회
       LocalDateTime oneMonthFromNow = LocalDateTime.now().plusMonths(1);
       List<Equipment> expiringEquipment =
-          equipmentRepository.findExpiringEquipment(oneMonthFromNow);
+          equipmentRepository.findByExpiredAtBefore(oneMonthFromNow);
 
       logger.info("Found {} equipment items expiring within 1 month", expiringEquipment.size());
 

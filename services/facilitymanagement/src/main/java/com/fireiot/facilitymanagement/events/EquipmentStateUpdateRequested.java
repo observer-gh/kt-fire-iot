@@ -18,68 +18,28 @@ public class EquipmentStateUpdateRequested {
   private String facilityId;
 
   @JsonProperty("changes")
-  private EquipmentChanges changes;
-
-  @JsonProperty("reason")
-  private String reason;
-
-  @JsonProperty("requested_by")
-  private String requestedBy;
+  private EquipmentStateChanges changes;
 
   @JsonProperty("requested_at")
   private OffsetDateTime requestedAt;
 
-  // Inner class for equipment changes
-  public static class EquipmentChanges {
-    @JsonProperty("equipment_location")
-    private String equipmentLocation;
-
-    @JsonProperty("status_code")
-    private String statusCode;
-
-    @JsonProperty("expired_at")
-    private OffsetDateTime expiredAt;
-
-    // Default constructor
-    public EquipmentChanges() {}
-
-    // Getters and Setters
-    public String getEquipmentLocation() {
-      return equipmentLocation;
-    }
-
-    public void setEquipmentLocation(String equipmentLocation) {
-      this.equipmentLocation = equipmentLocation;
-    }
-
-    public String getStatusCode() {
-      return statusCode;
-    }
-
-    public void setStatusCode(String statusCode) {
-      this.statusCode = statusCode;
-    }
-
-    public OffsetDateTime getExpiredAt() {
-      return expiredAt;
-    }
-
-    public void setExpiredAt(OffsetDateTime expiredAt) {
-      this.expiredAt = expiredAt;
-    }
-  }
+  @JsonProperty("requested_by")
+  private String requestedBy;
 
   // Default constructor
   public EquipmentStateUpdateRequested() {}
 
   // Constructor with required fields
   public EquipmentStateUpdateRequested(Integer version, String requestId, String equipmentId,
-      EquipmentChanges changes, OffsetDateTime requestedAt) {
+      String facilityId, EquipmentStateChanges changes, OffsetDateTime requestedAt,
+      String requestedBy) {
     this.version = version;
     this.requestId = requestId;
     this.equipmentId = equipmentId;
+    this.facilityId = facilityId;
     this.changes = changes;
     this.requestedAt = requestedAt;
+    this.requestedBy = requestedBy;
   }
 
   // Getters and Setters
@@ -115,20 +75,20 @@ public class EquipmentStateUpdateRequested {
     this.facilityId = facilityId;
   }
 
-  public EquipmentChanges getChanges() {
+  public EquipmentStateChanges getChanges() {
     return changes;
   }
 
-  public void setChanges(EquipmentChanges changes) {
+  public void setChanges(EquipmentStateChanges changes) {
     this.changes = changes;
   }
 
-  public String getReason() {
-    return reason;
+  public OffsetDateTime getRequestedAt() {
+    return requestedAt;
   }
 
-  public void setReason(String reason) {
-    this.reason = reason;
+  public void setRequestedAt(OffsetDateTime requestedAt) {
+    this.requestedAt = requestedAt;
   }
 
   public String getRequestedBy() {
@@ -139,11 +99,76 @@ public class EquipmentStateUpdateRequested {
     this.requestedBy = requestedBy;
   }
 
-  public OffsetDateTime getRequestedAt() {
-    return requestedAt;
-  }
+  // Inner class for equipment state changes
+  public static class EquipmentStateChanges {
+    @JsonProperty("status_code")
+    private String statusCode;
 
-  public void setRequestedAt(OffsetDateTime requestedAt) {
-    this.requestedAt = requestedAt;
+    @JsonProperty("equipment_location")
+    private String equipmentLocation;
+
+    @JsonProperty("expired_at")
+    private OffsetDateTime expiredAt;
+
+    @JsonProperty("last_maintenance_date")
+    private OffsetDateTime lastMaintenanceDate;
+
+    @JsonProperty("next_maintenance_date")
+    private OffsetDateTime nextMaintenanceDate;
+
+    // Default constructor
+    public EquipmentStateChanges() {}
+
+    // Constructor with fields
+    public EquipmentStateChanges(String statusCode, String equipmentLocation,
+        OffsetDateTime expiredAt, OffsetDateTime lastMaintenanceDate,
+        OffsetDateTime nextMaintenanceDate) {
+      this.statusCode = statusCode;
+      this.equipmentLocation = equipmentLocation;
+      this.expiredAt = expiredAt;
+      this.lastMaintenanceDate = lastMaintenanceDate;
+      this.nextMaintenanceDate = nextMaintenanceDate;
+    }
+
+    // Getters and Setters
+    public String getStatusCode() {
+      return statusCode;
+    }
+
+    public void setStatusCode(String statusCode) {
+      this.statusCode = statusCode;
+    }
+
+    public String getEquipmentLocation() {
+      return equipmentLocation;
+    }
+
+    public void setEquipmentLocation(String equipmentLocation) {
+      this.equipmentLocation = equipmentLocation;
+    }
+
+    public OffsetDateTime getExpiredAt() {
+      return expiredAt;
+    }
+
+    public void setExpiredAt(OffsetDateTime expiredAt) {
+      this.expiredAt = expiredAt;
+    }
+
+    public OffsetDateTime getLastMaintenanceDate() {
+      return lastMaintenanceDate;
+    }
+
+    public void setLastMaintenanceDate(OffsetDateTime lastMaintenanceDate) {
+      this.lastMaintenanceDate = lastMaintenanceDate;
+    }
+
+    public OffsetDateTime getNextMaintenanceDate() {
+      return nextMaintenanceDate;
+    }
+
+    public void setNextMaintenanceDate(OffsetDateTime nextMaintenanceDate) {
+      this.nextMaintenanceDate = nextMaintenanceDate;
+    }
   }
 }

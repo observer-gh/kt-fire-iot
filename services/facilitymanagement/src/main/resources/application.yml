@@ -9,23 +9,40 @@ spring:
     password: ${POSTGRES_PASSWORD:postgres}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create
+      show-sql: true
   flyway:
     enabled: true
     baseline-on-migrate: true
-    clean-disabled: false
-    clean-on-validation-error: true
+  
+  # Kafka 설정
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID:facilitymanagement-group}
-      auto-offset-reset: earliest
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: maintenanceRequested:com.fireiot.facilitymanagement.events.MaintenanceRequested,equipmentStateUpdateRequested:com.fireiot.facilitymanagement.events.EquipmentStateUpdateRequested
+    consumer:
+      group-id: facilitymanagement-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: maintenanceRequested:com.fireiot.facilitymanagement.events.MaintenanceRequested,equipmentStateUpdateRequested:com.fireiot.facilitymanagement.events.EquipmentStateUpdateRequested
 
 server:
   port: 8080
+
+# Kafka 토픽 설정
+kafka:
+  topics:
+    maintenance-requested: facilitymanagement.maintenanceRequested
+    equipment-state-update-requested: facilitymanagement.equipmentStateUpdateRequested
+
+
 
 springdoc:
   api-docs:

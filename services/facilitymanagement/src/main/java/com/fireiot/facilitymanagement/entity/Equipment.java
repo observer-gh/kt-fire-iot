@@ -32,7 +32,6 @@ public class Equipment {
   @Column(name = "expired_at")
   private LocalDateTime expiredAt;
 
-  @Version
   @Column(name = "version")
   private Integer version;
 
@@ -120,8 +119,20 @@ public class Equipment {
     this.version = version;
   }
 
+  @PrePersist
+  protected void onCreate() {
+    if (createdAt == null) {
+      createdAt = LocalDateTime.now();
+    }
+    if (version == null) {
+      version = 1;
+    }
+  }
+
   @PreUpdate
-  public void preUpdate() {
-    // 업데이트 시 버전 증가 로직은 필요에 따라 구현
+  protected void onUpdate() {
+    if (version != null) {
+      version++;
+    }
   }
 }

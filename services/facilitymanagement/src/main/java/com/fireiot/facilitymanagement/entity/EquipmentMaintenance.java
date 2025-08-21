@@ -5,14 +5,14 @@ import com.fireiot.facilitymanagement.enums.MaintenanceType;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "equipment_maintanence")
+@Table(name = "equipment_maintenance")
 public class EquipmentMaintenance {
 
   @Id
   @Column(name = "maintenance_log_id", length = 255)
   private String maintenanceLogId;
 
-  @Column(name = "equiment_id", length = 10, nullable = false)
+  @Column(name = "equipment_id", length = 10, nullable = false)
   private String equipmentId;
 
   @Column(name = "facility_id", length = 10)
@@ -21,8 +21,8 @@ public class EquipmentMaintenance {
   @Column(name = "equipment_location", length = 40)
   private String equipmentLocation;
 
+  @Column(name = "maintenance_type", length = 20)
   @Enumerated(EnumType.STRING)
-  @Column(name = "maintenance_type")
   private MaintenanceType maintenanceType;
 
   @Column(name = "scheduled_date")
@@ -49,11 +49,8 @@ public class EquipmentMaintenance {
   @Column(name = "updated_at")
   private LocalDateTime updatedAt;
 
-  @Version
   @Column(name = "version")
   private Integer version;
-
-
 
   // Default constructor
   public EquipmentMaintenance() {}
@@ -180,8 +177,24 @@ public class EquipmentMaintenance {
     this.version = version;
   }
 
+  @PrePersist
+  protected void onCreate() {
+    if (createdAt == null) {
+      createdAt = LocalDateTime.now();
+    }
+    if (updatedAt == null) {
+      updatedAt = LocalDateTime.now();
+    }
+    if (version == null) {
+      version = 1;
+    }
+  }
+
   @PreUpdate
-  public void preUpdate() {
-    this.updatedAt = LocalDateTime.now();
+  protected void onUpdate() {
+    updatedAt = LocalDateTime.now();
+    if (version != null) {
+      version++;
+    }
   }
 }
