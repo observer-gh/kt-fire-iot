@@ -9,15 +9,28 @@ Data ingestion and streaming processing service for IoT fire monitoring.
 1. **Real-time Data Ingestion**: 센서 데이터는 Mock Server나 외부 API에서 수신되어 Redis에 저장됩니다.
 2. **Redis Storage**: 모든 센서 데이터는 Redis에 실시간으로 저장되어 빠른 접근이 가능합니다.
 3. **Periodic Flush**: 1분 간격으로 Redis의 데이터를 로컬 스토리지에 flush합니다.
-4. **Event Publishing**: `sensorDataSaved` Kafka 이벤트는 flush 시에만 발행됩니다.
-5. **Anomaly Detection**: 이상치 탐지는 실시간으로 수행되며 즉시 `sensorDataAnomalyDetected` 이벤트가 발행됩니다.
+4. **Metadata Storage**: flush 시 메타데이터(수집 기간, 스토리지 위치, 통계 정보 등)를 PostgreSQL에 저장합니다.
+5. **Event Publishing**: `sensorDataSaved` Kafka 이벤트는 flush 시에만 발행됩니다.
+6. **Anomaly Detection**: 이상치 탐지는 실시간으로 수행되며 즉시 `sensorDataAnomalyDetected` 이벤트가 발행됩니다.
 
 ### Key Components
 
 - **Redis Client**: 센서 데이터의 임시 저장소 역할
-- **Batch Scheduler**: Redis flush와 배치 업로드를 관리
-- **Storage Service**: 로컬 스토리지에 데이터를 영구 저장
+- **Batch Scheduler**: Redis flush와 배치 업로드를 관리하며 메타데이터 생성
+- **Storage Service**: 로컬 스토리지에 데이터를 영구 저장하고 메타데이터를 PostgreSQL에 저장
 - **Kafka Publisher**: 이벤트 발행을 담당
+- **Metadata Management**: 스토리지 flush 정보를 추적하고 관리
+
+### Storage Metadata
+
+Redis flush 시마다 다음과 같은 메타데이터가 PostgreSQL의 `storage_metadata` 테이블에 저장됩니다:
+
+- **기본 정보**: flush 시간, 데이터 수집 기간, 레코드 수
+- **스토리지 정보**: 저장 경로, 스토리지 타입, 파일 크기
+- **처리 정보**: 처리 시간, 성공/실패 개수
+- **추가 정보**: 배치 ID, flush 타입, 에러 메시지 등
+
+이를 통해 데이터 수집 현황을 추적하고 스토리지 효율성을 모니터링할 수 있습니다.
 
 ## 🚀 Quick Start
 
@@ -91,6 +104,12 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501 --server.addres
 - `GET /redis/status` - Redis connection status and info (includes sensor data count)
 - `GET /stats` - Service statistics and storage info (with Redis caching)
 - `GET /docs` - API documentation (Swagger UI)
+
+### Storage Metadata APIs (New)
+
+- `GET /storage/metadata` - Get storage metadata with filtering and pagination
+- `GET /storage/metadata/{metadata_id}` - Get specific storage metadata by ID
+- `GET /storage/metadata/stats/summary` - Get summary statistics of storage metadata
 
 ### Data Ingestion APIs
 
@@ -166,6 +185,15 @@ The DataLake service includes a comprehensive real-time monitoring dashboard bui
 - **Historical Data Visualization**: Time series charts with configurable time ranges (1 hour, 24 hours, 7 days)
 - **Alert Management**: Real-time alert detection and display with severity levels
 - **Data Quality Monitoring**: Detection of missing data and quality issues
+- **Storage Metadata Monitoring**: Comprehensive tracking of Redis flush operations and storage efficiency
+
+### Storage Metadata Dashboard (New)
+
+- **Summary Metrics**: Total flushes, records processed, average processing time, recent activity
+- **Detailed View**: Recent flushes table with filtering and search capabilities
+- **Storage Type Breakdown**: Visual charts showing flush distribution by type
+- **Performance Tracking**: Processing duration, success rates, and error counts
+- **Filtering & Search**: Date range, storage type, and additional info search
 
 ### Access Dashboard
 
@@ -224,6 +252,14 @@ External API → DataLake (clean/process) → Database → Redis Cache → Stora
 - **Flush Interval**: 설정된 Redis flush 간격 (기본값: 60초)
 - **Connection Status**: Redis 연결 상태 및 응답 시간
 
+### Storage Metadata Metrics (New)
+
+- **Total Flushes**: 전체 flush 횟수
+- **Records Processed**: 처리된 총 레코드 수
+- **Average Processing Time**: 평균 처리 시간 (밀리초)
+- **Storage Type Breakdown**: 스토리지 타입별 flush 분포
+- **Recent Activity**: 최근 24시간 내 flush 활동
+
 ### Event Publishing
 
 - **Anomaly Events**: 이상치 탐지 시 즉시 발행 (`sensorDataAnomalyDetected`)
@@ -235,6 +271,7 @@ External API → DataLake (clean/process) → Database → Redis Cache → Stora
 - **Real-time Storage**: Redis를 통한 빠른 데이터 접근
 - **Batch Persistence**: 주기적인 로컬 스토리지 flush로 데이터 영속성 보장
 - **Memory Management**: flush 후 Redis 데이터 자동 정리
+- **Metadata Tracking**: 모든 flush 작업의 메타데이터를 PostgreSQL에 저장하여 추적 가능
 
 ## 🗄️ Redis Caching
 

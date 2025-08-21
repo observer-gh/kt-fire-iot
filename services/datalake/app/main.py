@@ -448,6 +448,25 @@ async def get_stats():
         alert_count_result = execute_query("SELECT COUNT(*) as count FROM alert WHERE status = %s", ("ACTIVE",))
         alert_count = alert_count_result[0]['count'] if alert_count_result else 0
         
+        # Get storage metadata stats
+        metadata_stats = {}
+        try:
+            metadata_count = execute_query("SELECT COUNT(*) as count FROM storage_metadata")[0]['count']
+            total_records_processed = execute_query("SELECT SUM(record_count) as total FROM storage_metadata")[0]['total'] or 0
+            recent_flushes = execute_query("""
+                SELECT COUNT(*) as count FROM storage_metadata 
+                WHERE flush_timestamp >= NOW() - INTERVAL '1 hour'
+            """)[0]['count']
+            
+            metadata_stats = {
+                "total_flushes": metadata_count,
+                "total_records_processed": total_records_processed,
+                "recent_flushes_1h": recent_flushes
+            }
+        except Exception as e:
+            logger.warning(f"Could not get metadata stats: {e}")
+            metadata_stats = {"error": "Metadata stats unavailable"}
+        
         # Get storage stats
         storage_stats = storage_service.get_storage_stats() if hasattr(storage_service, 'get_storage_stats') else {}
         
@@ -468,6 +487,7 @@ async def get_stats():
             "mock_server_url": settings.mock_server_url,
             "mock_server_data_fetch_interval": settings.mock_server_data_fetch_interval_seconds,
             "storage_stats": storage_stats,
+            "storage_metadata": metadata_stats,
             "redis_sensor_data_count": redis_data_count,
             "redis_flush_interval_seconds": batch_scheduler.flush_interval_seconds,
             "cached": False
@@ -499,6 +519,144 @@ async def get_uploaded_batches():
     except Exception as e:
         logger.error(f"Error getting uploaded batches: {e}")
         raise HTTPException(status_code=500, detail="Failed to get uploaded batches")
+
+
+@app.get("/storage/metadata")
+async def get_storage_metadata(
+    limit: int = 100,
+    offset: int = 0,
+    storage_type: str = None,
+    start_date: str = None,
+    end_date: str = None
+):
+    """Get storage metadata with filtering and pagination"""
+    try:
+        from .database import execute_query
+        
+        # Build query with filters
+        query = "SELECT * FROM storage_metadata WHERE 1=1"
+        params = []
+        
+        if storage_type:
+            query += " AND storage_type = %s"
+            params.append(storage_type)
+        
+        if start_date:
+            query += " AND flush_timestamp >= %s"
+            params.append(start_date)
+        
+        if end_date:
+            query += " AND flush_timestamp <= %s"
+            params.append(end_date)
+        
+        # Add ordering and pagination
+        query += " ORDER BY flush_timestamp DESC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        
+        # Execute query
+        results = execute_query(query, params)
+        
+        # Get total count for pagination
+        count_query = "SELECT COUNT(*) as total FROM storage_metadata WHERE 1=1"
+        count_params = []
+        
+        if storage_type:
+            count_query += " AND storage_type = %s"
+            count_params.append(storage_type)
+        
+        if start_date:
+            count_query += " AND flush_timestamp >= %s"
+            count_params.append(start_date)
+        
+        if end_date:
+            count_query += " AND flush_timestamp <= %s"
+            count_params.append(end_date)
+        
+        total_count = execute_query(count_query, count_params)[0]['total']
+        
+        return {
+            "metadata": results,
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "total": total_count,
+                "has_more": offset + limit < total_count
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting storage metadata: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get storage metadata")
+
+
+@app.get("/storage/metadata/{metadata_id}")
+async def get_storage_metadata_by_id(metadata_id: str):
+    """Get specific storage metadata by ID"""
+    try:
+        from .database import execute_query
+        
+        query = "SELECT * FROM storage_metadata WHERE metadata_id = %s"
+        result = execute_query(query, (metadata_id,))
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Storage metadata not found")
+        
+        return result[0]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting storage metadata by ID: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get storage metadata")
+
+
+@app.get("/storage/metadata/stats/summary")
+async def get_storage_metadata_summary():
+    """Get summary statistics of storage metadata"""
+    try:
+        from .database import execute_query
+        
+        # Get basic counts
+        total_count = execute_query("SELECT COUNT(*) as count FROM storage_metadata")[0]['count']
+        
+        # Get counts by storage type
+        type_counts = execute_query("""
+            SELECT storage_type, COUNT(*) as count 
+            FROM storage_metadata 
+            GROUP BY storage_type
+        """)
+        
+        # Get recent activity (last 24 hours)
+        recent_count = execute_query("""
+            SELECT COUNT(*) as count 
+            FROM storage_metadata 
+            WHERE flush_timestamp >= NOW() - INTERVAL '24 hours'
+        """)[0]['count']
+        
+        # Get total records processed
+        total_records = execute_query("""
+            SELECT SUM(record_count) as total 
+            FROM storage_metadata
+        """)[0]['total'] or 0
+        
+        # Get average processing time
+        avg_processing_time = execute_query("""
+            SELECT AVG(processing_duration_ms) as avg_time 
+            FROM storage_metadata 
+            WHERE processing_duration_ms IS NOT NULL
+        """)[0]['avg_time'] or 0
+        
+        return {
+            "total_flushes": total_count,
+            "recent_flushes_24h": recent_count,
+            "total_records_processed": total_records,
+            "average_processing_time_ms": round(avg_processing_time, 2),
+            "storage_type_breakdown": type_counts
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting storage metadata summary: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get storage metadata summary")
 
 
 @app.delete("/storage/batches")

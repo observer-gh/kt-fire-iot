@@ -83,6 +83,50 @@ def main():
         total_equipment = data_manager.get_equipment_count()
         st.metric("📡 Total Equipment", total_equipment)
     
+    # Storage metadata section
+    st.subheader("💾 Storage Metadata")
+    
+    try:
+        # Get storage metadata summary
+        metadata_summary = data_manager.get_storage_metadata_summary()
+        
+        if metadata_summary and not metadata_summary.get("error"):
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("📁 Total Flushes", metadata_summary.get("total_flushes", 0))
+            
+            with col2:
+                st.metric("📊 Records Processed", metadata_summary.get("total_records_processed", 0))
+            
+            with col3:
+                st.metric("⏱️ Avg Processing Time", f"{metadata_summary.get('average_processing_time_ms', 0)}ms")
+            
+            with col4:
+                st.metric("🕐 Recent Flushes (24h)", metadata_summary.get("recent_flushes_24h", 0))
+            
+            # Storage type breakdown
+            if metadata_summary.get("storage_type_breakdown"):
+                st.subheader("📈 Storage Type Breakdown")
+                type_data = metadata_summary["storage_type_breakdown"]
+                type_df = pd.DataFrame(type_data)
+                
+                if not type_df.empty:
+                    fig = go.Figure(data=[
+                        go.Bar(x=type_df['storage_type'], y=type_df['count'])
+                    ])
+                    fig.update_layout(
+                        title="Flushes by Storage Type",
+                        xaxis_title="Storage Type",
+                        yaxis_title="Count"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Storage metadata not available")
+            
+    except Exception as e:
+        st.error(f"Failed to load storage metadata: {e}")
+
     # Real-time sensor charts
     st.subheader("📊 Real-time Sensor Readings")
     
@@ -262,6 +306,106 @@ def main():
             styled_df = health_df.style.map(color_health_score, subset=['health_score'])
             st.dataframe(styled_df, use_container_width=True)
     
+    # Storage metadata detailed view
+    st.subheader("📋 Storage Metadata Details")
+    
+    try:
+        # Get detailed metadata
+        metadata_data = data_manager.get_storage_metadata(limit=50)
+        
+        if metadata_data and metadata_data.get("metadata"):
+            metadata_list = metadata_data["metadata"]
+            
+            # Create tabs for different views
+            tab1, tab2, tab3 = st.tabs(["📊 Summary", "📋 Recent Flushes", "🔍 Filter & Search"])
+            
+            with tab1:
+                # Summary statistics
+                if metadata_data.get("pagination"):
+                    pagination = metadata_data["pagination"]
+                    st.info(f"Showing {len(metadata_list)} of {pagination['total']} total flushes")
+                
+                # Quick stats
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Records", sum(m.get('record_count', 0) for m in metadata_list))
+                with col2:
+                    st.metric("Avg File Size", f"{sum(m.get('file_size_bytes', 0) for m in metadata_list if m.get('file_size_bytes')) / len([m for m in metadata_list if m.get('file_size_bytes')]):.0f} bytes" if any(m.get('file_size_bytes') for m in metadata_list) else "N/A")
+                with col3:
+                    st.metric("Success Rate", f"{sum(m.get('success_count', 0) for m in metadata_list) / sum(m.get('record_count', 0) for m in metadata_list) * 100:.1f}%" if sum(m.get('record_count', 0) for m in metadata_list) > 0 else "N/A")
+            
+            with tab2:
+                # Recent flushes table
+                if metadata_list:
+                    # Convert to DataFrame for better display
+                    df_data = []
+                    for metadata in metadata_list:
+                        df_data.append({
+                            'ID': metadata.get('metadata_id', '')[:8],
+                            'Timestamp': metadata.get('flush_timestamp', ''),
+                            'Records': metadata.get('record_count', 0),
+                            'Type': metadata.get('storage_type', ''),
+                            'Path': metadata.get('storage_path', ''),
+                            'Duration (ms)': metadata.get('processing_duration_ms', 'N/A'),
+                            'Success': metadata.get('success_count', 0),
+                            'Errors': metadata.get('error_count', 0)
+                        })
+                    
+                    metadata_df = pd.DataFrame(df_data)
+                    st.dataframe(metadata_df, use_container_width=True)
+                else:
+                    st.info("No metadata available")
+            
+            with tab3:
+                # Filter and search
+                st.subheader("🔍 Filter Metadata")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    filter_type = st.selectbox("Storage Type", ["All"] + list(set(m.get('storage_type', '') for m in metadata_list if m.get('storage_type'))))
+                    start_date = st.date_input("Start Date", value=datetime.now().date() - timedelta(days=7))
+                
+                with col2:
+                    end_date = st.date_input("End Date", value=datetime.now().date())
+                    search_query = st.text_input("Search in additional info")
+                
+                if st.button("🔍 Apply Filters"):
+                    # Apply filters
+                    filtered_metadata = []
+                    for metadata in metadata_list:
+                        # Type filter
+                        if filter_type != "All" and metadata.get('storage_type') != filter_type:
+                            continue
+                        
+                        # Date filter
+                        if metadata.get('flush_timestamp'):
+                            try:
+                                flush_date = datetime.fromisoformat(str(metadata['flush_timestamp']).replace('Z', '+00:00')).date()
+                                if not (start_date <= flush_date <= end_date):
+                                    continue
+                            except:
+                                pass
+                        
+                        # Search filter
+                        if search_query and metadata.get('additional_info'):
+                            additional_info_str = str(metadata['additional_info']).lower()
+                            if search_query.lower() not in additional_info_str:
+                                continue
+                        
+                        filtered_metadata.append(metadata)
+                    
+                    if filtered_metadata:
+                        st.success(f"Found {len(filtered_metadata)} matching records")
+                        filtered_df = pd.DataFrame(filtered_metadata)
+                        st.dataframe(filtered_df, use_container_width=True)
+                    else:
+                        st.warning("No records match the selected filters")
+        else:
+            st.info("Storage metadata not available")
+            
+    except Exception as e:
+        st.error(f"Failed to load storage metadata details: {e}")
+
     # Footer with last update time
     st.markdown("---")
     st.markdown(f"*Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")

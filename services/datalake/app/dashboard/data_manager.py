@@ -210,13 +210,52 @@ class FireSensorDataManager:
             return []
     
     def get_equipment_count(self) -> int:
-        """Get total count of equipment"""
+        """Get total equipment count"""
         try:
-            rows = execute_query("SELECT COUNT(DISTINCT equipment_id) as count FROM realtime WHERE equipment_id IS NOT NULL")
-            return rows[0]['count'] if rows else 0
+            result = execute_query("SELECT COUNT(DISTINCT equipment_id) as count FROM realtime")
+            return result[0]['count'] if result else 0
         except Exception as e:
             logger.error(f"Error getting equipment count: {e}")
             return 0
+    
+    def get_storage_metadata_summary(self) -> Optional[Dict[str, Any]]:
+        """Get storage metadata summary from API"""
+        try:
+            response = requests.get(f"{self.api_url}/storage/metadata/stats/summary", timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to get metadata summary: {response.status_code}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting storage metadata summary: {e}")
+            return None
+    
+    def get_storage_metadata(self, limit: int = 100, offset: int = 0, 
+                           storage_type: str = None, start_date: str = None, 
+                           end_date: str = None) -> Optional[Dict[str, Any]]:
+        """Get storage metadata with filtering and pagination"""
+        try:
+            params = {
+                'limit': limit,
+                'offset': offset
+            }
+            if storage_type:
+                params['storage_type'] = storage_type
+            if start_date:
+                params['start_date'] = start_date
+            if end_date:
+                params['end_date'] = end_date
+            
+            response = requests.get(f"{self.api_url}/storage/metadata", params=params, timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"Failed to get storage metadata: {response.status_code}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting storage metadata: {e}")
+            return None
     
     def get_total_readings_count(self) -> int:
         """Get total count of readings in the last hour"""
