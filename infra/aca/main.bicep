@@ -107,10 +107,12 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2023-01-01-preview' = 
   }
 }
 
-// // Event Hub Topics
-resource sensorDataTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+// Event Hub Topics - Based on actual service usage
+
+// DataLake Topics (matching contract filenames)
+resource sensorAnomalyDetectedTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
   parent: eventHubNamespace
-  name: 'sensor-data'
+  name: 'dataLake.sensorDataAnomalyDetected'
   properties: {
     messageRetentionInDays: 7
     partitionCount: 4
@@ -118,9 +120,9 @@ resource sensorDataTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-pre
   }
 }
 
-resource alertTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+resource sensorDataSavedTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
   parent: eventHubNamespace
-  name: 'alerts'
+  name: 'dataLake.sensorDataSaved'
   properties: {
     messageRetentionInDays: 7
     partitionCount: 4
@@ -128,9 +130,10 @@ resource alertTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview'
   }
 }
 
-resource controlTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+// Video Analysis Fire Detection Topic (matching contract filename)
+resource videoAnalysisFireDetectedTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
   parent: eventHubNamespace
-  name: 'control-events'
+  name: 'videoAnalysis.fireDetected'
   properties: {
     messageRetentionInDays: 7
     partitionCount: 4
@@ -138,9 +141,51 @@ resource controlTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-previe
   }
 }
 
-resource fireDetectionTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+// ControlTower Topics (matching contract filenames)
+resource controlTowerFireNotifiedTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
   parent: eventHubNamespace
-  name: 'rtVideoAnalysis.fireDetected'
+  name: 'controlTower.fireDetectionNotified'
+  properties: {
+    messageRetentionInDays: 7
+    partitionCount: 4
+    status: 'Active'
+  }
+}
+
+resource warningAlertTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+  parent: eventHubNamespace
+  name: 'controlTower.warningAlertIssued'
+  properties: {
+    messageRetentionInDays: 7
+    partitionCount: 4
+    status: 'Active'
+  }
+}
+
+resource emergencyAlertTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+  parent: eventHubNamespace
+  name: 'controlTower.emergencyAlertIssued'
+  properties: {
+    messageRetentionInDays: 7
+    partitionCount: 4
+    status: 'Active'
+  }
+}
+
+// Alert Service Result Topics (matching contract filenames)
+resource alertSuccessTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+  parent: eventHubNamespace
+  name: 'alert.alertSendSuccess'
+  properties: {
+    messageRetentionInDays: 7
+    partitionCount: 4
+    status: 'Active'
+  }
+}
+
+resource alertFailTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+  parent: eventHubNamespace
+  name: 'alert.alertSendFail'
   properties: {
     messageRetentionInDays: 7
     partitionCount: 4
@@ -280,6 +325,54 @@ resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'SPRING_PROFILES_ACTIVE'
           value: 'cloud'
         }
+        // Kafka/Event Hub Connection Configuration
+        {
+          name: 'KAFKA_BOOTSTRAP_SERVERS'
+          value: '${eventHubNamespace.name}.servicebus.windows.net:9093'
+        }
+        {
+          name: 'KAFKA_SECURITY_PROTOCOL'
+          value: 'SASL_SSL'
+        }
+        {
+          name: 'KAFKA_SASL_MECHANISM'
+          value: 'PLAIN'
+        }
+        {
+          name: 'KAFKA_SASL_CONFIG'
+          value: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="$ConnectionString" password="${eventHubAuthRule.listKeys().primaryConnectionString}";'
+        }
+        // Consumer Configuration
+        {
+          name: 'KAFKA_CONSUMER_GROUP_ID'
+          value: 'controltower-group'
+        }
+        {
+          name: 'KAFKA_AUTO_OFFSET_RESET'
+          value: 'earliest'
+        }
+        // Topic Mappings (matching contract filenames)
+        {
+          name: 'KAFKA_TOPIC_SENSOR_ANOMALY'
+          value: 'dataLake.sensorDataAnomalyDetected'
+        }
+        {
+          name: 'KAFKA_TOPIC_VIDEO_FIRE'
+          value: 'videoAnalysis.fireDetected'
+        }
+        {
+          name: 'KAFKA_TOPIC_FIRE_NOTIFY'
+          value: 'controlTower.fireDetectionNotified'
+        }
+        {
+          name: 'KAFKA_TOPIC_WARNING_ALERT'
+          value: 'controlTower.warningAlertIssued'
+        }
+        {
+          name: 'KAFKA_TOPIC_EMERGENCY_ALERT'
+          value: 'controlTower.emergencyAlertIssued'
+        }
+        // Legacy Event Hub connection for backward compatibility
         {
           name: 'EVENTHUB_CONNECTION_STRING'
           value: eventHubAuthRule.listKeys().primaryConnectionString
@@ -347,6 +440,14 @@ resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'REDIS_URL'
           value: 'rediss://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
+        }
+        {
+          name: 'KAFKA_TOPIC_ANOMALY'
+          value: 'dataLake.sensorDataAnomalyDetected'
+        }
+        {
+          name: 'KAFKA_TOPIC_DATA_SAVED'
+          value: 'dataLake.sensorDataSaved'
         }
         {
           name: 'EVENTHUB_CONN'
@@ -419,6 +520,22 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'REDIS_URL'
           value: 'redis://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
+        }
+        {
+          name: 'KAFKA_WARNING_TOPIC'
+          value: 'controlTower.warningAlertIssued'
+        }
+        {
+          name: 'KAFKA_EMERGENCY_TOPIC'
+          value: 'controlTower.emergencyAlertIssued'
+        }
+        {
+          name: 'KAFKA_ALERT_SUCCESS_TOPIC'
+          value: 'alert.alertSendSuccess'
+        }
+        {
+          name: 'KAFKA_ALERT_FAIL_TOPIC'
+          value: 'alert.alertSendFail'
         }
         {
           name: 'EVENTHUB_CONN'
@@ -531,6 +648,15 @@ output mockServerUrl string = 'https://${mockServerApp.properties.defaultHostNam
 output videoAnalysisUrl string = 'https://${videoAnalysisApp.properties.defaultHostName}'
 output dockerHubOrg string = dockerHubOrg
 output eventHubNamespace string = eventHubNamespace.name
+output eventHubConnectionString string = eventHubAuthRule.listKeys().primaryConnectionString
+output sensorAnomalyDetectedTopic string = sensorAnomalyDetectedTopic.name
+output sensorDataSavedTopic string = sensorDataSavedTopic.name
+output videoAnalysisFireDetectedTopic string = videoAnalysisFireDetectedTopic.name
+output controlTowerFireNotifiedTopic string = controlTowerFireNotifiedTopic.name
+output warningAlertTopic string = warningAlertTopic.name
+output emergencyAlertTopic string = emergencyAlertTopic.name
+output alertSuccessTopic string = alertSuccessTopic.name
+output alertFailTopic string = alertFailTopic.name
 output postgresDatalakeServerFqdn string = postgresDatalakeServer.properties.fullyQualifiedDomainName
 output postgresFacilityManagementServerFqdn string = postgresFacilityManagementServer.properties.fullyQualifiedDomainName
 output redisHostName string = redisCache.properties.hostName
