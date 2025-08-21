@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "alert_id": {
+      "type": "string"
+    },
+    "incident_id": {
+      "type": "string"
+    },
+    "facility_id": {
+      "type": ["null", "string"]
+    },
+    "equipment_location": {
+      "type": ["null", "string"]
+    },
+    "alert_type": {
+      "$ref": "commonEnums.json#/definitions/AlertType"
+    },
+    "severity": {
+      "$ref": "commonEnums.json#/definitions/Severity"
+    },
+    "status": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "description": {
+      "type": "string"
+    },
+    "cctv_id": {
+      "type": "string"
+    },
+    "detection_confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    }
+  },
+  "required": [
+    "version",
+    "alert_id",
+    "incident_id",
+    "alert_type",
+    "severity",
+    "status",
+    "created_at",
+    "description"
+  ]
+}

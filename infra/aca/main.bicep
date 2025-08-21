@@ -20,8 +20,14 @@ param postgresAdminPassword string
 @description('Event Hubs namespace name')
 param eventHubNamespaceName string = 'fire-iot-eventhub-${environment}'
 
+@description('Azure Computer Vision endpoint')
+param azureVisionEndpoint string
+
+@description('Azure Computer Vision API key')
+@secure()
+param azureVisionKey string
+
 // Variables
-var containerAppsEnvironmentName = 'fire-iot-${environment}' // not used for web app
 var appNamePrefix = 'app-${environment}'
 var vnetName = 'fire-iot-vnet-${environment}'
 var containerAppsSubnetName = 'container-apps-subnet'
@@ -132,6 +138,16 @@ resource controlTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-previe
   }
 }
 
+resource fireDetectionTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+  parent: eventHubNamespace
+  name: 'rtVideoAnalysis.fireDetected'
+  properties: {
+    messageRetentionInDays: 7
+    partitionCount: 4
+    status: 'Active'
+  }
+}
+
 // Event Hub Authorization Rule
 resource eventHubAuthRule 'Microsoft.EventHub/namespaces/authorizationRules@2023-01-01-preview' = {
   parent: eventHubNamespace
@@ -223,6 +239,8 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
     minimumTlsVersion: '1.2'
   }
 }
+
+
 
 // App Service Plan
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
@@ -318,6 +336,7 @@ resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'REDIS_URL'
           value: 'redis://${redisCache.properties.hostName}:6380'
         }
+
         {
           name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
@@ -356,6 +375,7 @@ resource dataLakeDashboardApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'REDIS_URL'
           value: 'redis://${redisCache.properties.hostName}:6380'
         }
+
         {
           name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
@@ -433,6 +453,64 @@ resource mockServerApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
+// VideoAnalysis Web App
+resource videoAnalysisApp 'Microsoft.Web/sites@2023-01-01' = {
+  name: '${appNamePrefix}-videoanalysis'
+  location: location
+  properties: {
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${dockerHubOrg}/kt-fire-iot-videoanalysis:${imageTag}'
+      appSettings: [
+        {
+          name: 'PROFILE'
+          value: 'cloud'
+        }
+        {
+          name: 'MOCK_SERVER_HOST'
+          value: mockServerApp.properties.defaultHostName
+        }
+        {
+          name: 'MOCK_SERVER_PORT'
+          value: '8001'
+        }
+        {
+          name: 'AZURE_VISION_ENDPOINT'
+          value: azureVisionEndpoint
+        }
+        {
+          name: 'AZURE_VISION_KEY'
+          value: azureVisionKey
+        }
+        {
+          name: 'FIRE_DETECTION_CONFIDENCE_THRESHOLD'
+          value: '70'
+        }
+        {
+          name: 'FIRE_DETECTION_INTERVAL_SECONDS'
+          value: '20'
+        }
+        {
+          name: 'KAFKA_BOOTSTRAP_SERVERS'
+          value: '${eventHubNamespace.name}.servicebus.windows.net:9093'
+        }
+        {
+          name: 'EVENTHUB_CONNECTION_STRING'
+          value: eventHubAuthRule.listKeys().primaryConnectionString
+        }
+        {
+          name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+          value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
+        }
+        {
+          name: 'WEBSITES_PORT'
+          value: '8080'
+        }
+      ]
+    }
+  }
+}
+
 // Outputs
 output controlTowerUrl string = 'https://${controlTowerApp.properties.defaultHostName}'
 output facilityManagementUrl string = 'https://${facilityManagementApp.properties.defaultHostName}'
@@ -440,6 +518,7 @@ output dataLakeApiUrl string = 'https://${dataLakeApiApp.properties.defaultHostN
 output dataLakeDashboardUrl string = 'https://${dataLakeDashboardApp.properties.defaultHostName}'
 output alertUrl string = 'https://${alertApp.properties.defaultHostName}'
 output mockServerUrl string = 'https://${mockServerApp.properties.defaultHostName}'
+output videoAnalysisUrl string = 'https://${videoAnalysisApp.properties.defaultHostName}'
 output dockerHubOrg string = dockerHubOrg
 output eventHubNamespace string = eventHubNamespace.name
 output postgresDatalakeServerFqdn string = postgresDatalakeServer.properties.fullyQualifiedDomainName

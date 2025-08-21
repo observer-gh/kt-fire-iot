@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "facility_id": {
+      "type": ["null", "string"]
+    },
+    "equipment_location": {
+      "type": ["null", "string"]
+    },
+    "detection_confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "detection_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cctv_id": {
+      "type": "string"
+    },
+    "detection_area": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "event_id",
+    "detection_confidence",
+    "detection_timestamp",
+    "cctv_id",
+    "description"
+  ]
+}
