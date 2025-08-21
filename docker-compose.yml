@@ -307,6 +307,38 @@ services:
     networks:
       - fire-iot-network
 
+  videoanalysis:
+    build: ./services/videoanalysis
+    container_name: fire-iot-videoanalysis
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mock-server:
+        condition: service_started
+    environment:
+      # Mock Server Configuration
+      - MOCK_SERVER_HOST=mock-server
+      - MOCK_SERVER_PORT=8001
+      # Azure Computer Vision
+      - AZURE_VISION_ENDPOINT=https://fire-iot.cognitiveservices.azure.com/
+      - AZURE_VISION_KEY=1r73g9RL2qkraqun2lO4sxMv7Zdf5Y323Z1CcS7XuyBotp0MfKoaJQQJ99BHACNns7RXJ3w3AAAFACOGuAnM
+      # Fire Detection
+      - FIRE_DETECTION_CONFIDENCE_THRESHOLD=70
+      - FIRE_DETECTION_INTERVAL_SECONDS=20
+      # Kafka Configuration
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      # Frame Processing
+      - SAVE_FRAMES=false
+      - FRAMES_OUTPUT_DIR=/app/output/frames
+      # Video Selection
+      - DEFAULT_VIDEO_FILE=sample1.mp4
+      # Logging
+      - LOG_LEVEL=INFO
+    volumes:
+      - videoanalysis_frames:/app/output/frames
+    networks:
+      - fire-iot-network
+
   mock-server:
     build: ./services/mock-server
     container_name: fire-iot-mock-server
@@ -323,6 +355,8 @@ volumes:
   redis_data:
     driver: local
   datalake_storage:
+    driver: local
+  videoanalysis_frames:
     driver: local
 
 networks:
