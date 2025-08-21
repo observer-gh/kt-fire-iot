@@ -19,8 +19,7 @@ public class FireDetectionConsumer {
   }
 
   @KafkaListener(topics = "${kafka.topics.video-fire-detected:videoAnalysis.fireDetected}",
-      groupId = "${kafka.consumer.group-id:controltower-group}",
-      containerFactory = "videoFireDetectedKafkaListenerContainerFactory")
+      groupId = "${kafka.consumer.group-id:controltower-group}")
   public void consumeVideoFireDetected(VideoFireDetected event) {
     logger.info("Received VideoFireDetected event: {} from CCTV: {}", event.getEventId(),
         event.getCctvId());
