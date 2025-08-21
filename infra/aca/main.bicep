@@ -229,7 +229,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: 'fire-iot-plan-${environment}'
   location: location
   sku: {
-    name: 'B1'
+    name: 'B3'
     tier: 'Basic'
   }
   properties: {
