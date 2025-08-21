@@ -275,6 +275,33 @@ services:
     networks:
       - fire-iot-network
 
+  rtvideoanalysis:
+    build: ./services/rtVideoAnalysis
+    container_name: fire-iot-rtvideoanalysis
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8085:8080"
+    environment:
+      - AZURE_VISION_ENDPOINT=https://fire-iot.cognitiveservices.azure.com/
+      - AZURE_VISION_KEY=1r73g9RL2qkraqun2lO4sxMv7Zdf5Y323Z1CcS7XuyBotp0MfKoaJQQJ99BHACNns7RXJ3w3AAAFACOGuAnM
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - FRAME_INTERVAL_SECONDS=20
+      - FIRE_DETECTION_CONFIDENCE_THRESHOLD=70
+      - LOG_LEVEL=INFO
+      # CCTV Streams (mock URLs for testing)
+      - CCTV_STREAM_1=rtsp://mock-camera-1
+      - CCTV_STREAM_2=rtsp://mock-camera-2
+      - CCTV_STREAM_3=rtsp://mock-camera-3
+      - CCTV_STREAM_4=rtsp://mock-camera-4
+      - CCTV_ID_1=cctv_001
+      - CCTV_ID_2=cctv_002
+      - CCTV_ID_3=cctv_003
+      - CCTV_ID_4=cctv_004
+    networks:
+      - fire-iot-network
+
   mock-server:
     build: ./services/mock-server
     container_name: fire-iot-mock-server
