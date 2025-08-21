@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "local"  # local, dev, prod
 
-    # Kafka Configuration (for local)
+    # Kafka Configuration (for local and cloud)
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_warning_topic: str = "controlTower.warningAlertIssued"
     kafka_emergency_topic: str = "controlTower.emergencyAlertIssued"
@@ -28,6 +28,17 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_prefix = "ALERT_"
+        
+        # Bicep 환경변수와 Python 설정 매핑
+        fields = {
+            'kafka_bootstrap_servers': {'env': 'KAFKA_BOOTSTRAP_SERVERS'},
+            'kafka_warning_topic': {'env': 'KAFKA_WARNING_TOPIC'},
+            'kafka_emergency_topic': {'env': 'KAFKA_EMERGENCY_TOPIC'},
+            'kafka_alert_success_topic': {'env': 'KAFKA_ALERT_SUCCESS_TOPIC'},
+            'kafka_alert_fail_topic': {'env': 'KAFKA_ALERT_FAIL_TOPIC'},
+            'kafka_group_id': {'env': 'KAFKA_CONSUMER_GROUP_ID'},
+            'azure_eventhub_connection_string': {'env': 'azure_eventhub_connection_string'}
+        }
 
 
 settings = Settings()

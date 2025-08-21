@@ -9,12 +9,36 @@ logger = logging.getLogger(__name__)
 
 class KafkaEventProducer:
     def __init__(self):
-        self.producer = KafkaProducer(
-            bootstrap_servers=settings.kafka_bootstrap_servers,
-            value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-            key_serializer=lambda k: k.encode('utf-8') if k else None
-        )
-        logger.info("Kafka producer initialized")
+        self.producer = None
+        self._connect()
+
+    def _connect(self):
+        """Connect to Kafka broker or Azure Event Hub"""
+        try:
+            # Check if we're in Azure cloud environment
+            if settings.azure_eventhub_connection_string:
+                # Azure Event Hub connection (Kafka compatible mode)
+                self.producer = KafkaProducer(
+                    bootstrap_servers=settings.kafka_bootstrap_servers,
+                    security_protocol='SASL_SSL',
+                    sasl_mechanism='PLAIN',
+                    sasl_plain_username='$ConnectionString',
+                    sasl_plain_password=settings.azure_eventhub_connection_string,
+                    value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+                    key_serializer=lambda k: k.encode('utf-8') if k else None
+                )
+                logger.info(f"Connected to Azure Event Hub at {settings.kafka_bootstrap_servers}")
+            else:
+                # Local Kafka connection
+                self.producer = KafkaProducer(
+                    bootstrap_servers=settings.kafka_bootstrap_servers,
+                    value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+                    key_serializer=lambda k: k.encode('utf-8') if k else None
+                )
+                logger.info(f"Connected to local Kafka at {settings.kafka_bootstrap_servers}")
+        except Exception as e:
+            logger.error(f"Failed to connect to Kafka/Event Hub: {e}")
+            self.producer = None
 
     def publish_alert_success(self, alert_id: str, channel: str = "slack", recipient: str = None):
         """Publish alert success event to Kafka"""

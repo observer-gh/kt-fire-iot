@@ -3,8 +3,6 @@ import json
 import logging
 from typing import Callable, Dict, Any
 from kafka import KafkaConsumer
-from azure.eventhub.aio import EventHubConsumerClient
-from azure.eventhub import EventData
 from .config import settings
 
 logger = logging.getLogger(__name__)
@@ -19,14 +17,14 @@ class MessageConsumer:
         """Start consuming messages based on environment"""
         self.running = True
 
-        if settings.environment == "local":
-            await self._start_kafka_consumer()
+        if settings.azure_eventhub_connection_string:
+            await self._start_azure_kafka_consumer()
         else:
-            await self._start_azure_consumer()
+            await self._start_local_kafka_consumer()
 
-    async def _start_kafka_consumer(self):
+    async def _start_local_kafka_consumer(self):
         """Start Kafka consumer for local development"""
-        logger.info("Starting Kafka consumer...")
+        logger.info("Starting local Kafka consumer...")
 
         consumer = KafkaConsumer(
             settings.kafka_warning_topic,
@@ -55,38 +53,51 @@ class MessageConsumer:
         finally:
             consumer.close()
 
-    async def _start_azure_consumer(self):
-        """Start Azure Event Hubs consumer for cloud environments"""
+    async def _start_azure_kafka_consumer(self):
+        """Start Azure Event Hub consumer using Kafka compatible mode"""
         if not settings.azure_eventhub_connection_string:
             raise ValueError(
                 "Azure Event Hubs connection string not configured")
 
-        logger.info("Starting Azure Event Hubs consumer...")
-
-        client = EventHubConsumerClient.from_connection_string(
-            settings.azure_eventhub_connection_string,
-            settings.azure_eventhub_consumer_group
-        )
-
-        async def on_event(partition_context, event: EventData):
-            try:
-                message_data = json.loads(event.body_as_str())
-                logger.info(
-                    f"Received message from partition {partition_context.partition_id}: {message_data}")
-                self.message_handler(message_data)
-                await partition_context.update_checkpoint(event)
-            except Exception as e:
-                logger.error(f"Error processing Azure Event Hubs message: {e}")
+        logger.info("Starting Azure Event Hub Kafka consumer...")
 
         try:
-            async with client:
-                await client.receive(
-                    on_event=on_event,
-                    track_last_enqueued_event_properties=True,
-                    starting_position="-1"
-                )
+            consumer = KafkaConsumer(
+                settings.kafka_warning_topic,
+                settings.kafka_emergency_topic,
+                bootstrap_servers=settings.kafka_bootstrap_servers,
+                group_id=settings.kafka_group_id,
+                auto_offset_reset='earliest',
+                enable_auto_commit=True,
+                security_protocol='SASL_SSL',
+                sasl_mechanism='PLAIN',
+                sasl_plain_username='$ConnectionString',
+                sasl_plain_password=settings.azure_eventhub_connection_string,
+                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+            )
+            logger.info(f"Connected to Azure Event Hub at {settings.kafka_bootstrap_servers}")
         except Exception as e:
-            logger.error(f"Azure Event Hubs consumer error: {e}")
+            logger.error(f"Failed to connect to Azure Event Hub: {e}")
+            return
+
+
+
+        try:
+            for message in consumer:
+                if not self.running:
+                    break
+
+                try:
+                    logger.info(
+                        f"Received message from topic {message.topic}: {message.value}")
+                    self.message_handler(message.value)
+                except Exception as e:
+                    logger.error(f"Error processing message: {e}")
+
+        except Exception as e:
+            logger.error(f"Azure Event Hub Kafka consumer error: {e}")
+        finally:
+            consumer.close()
 
     async def stop(self):
         """Stop the consumer"""
