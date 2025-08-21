@@ -1,4 +1,4 @@
-name: Build and Push MockServer
+name: MockServer CI/CD
 
 on:
   push:
@@ -12,7 +12,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  # PR에서는 빌드만 수행
+  build-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build MockServer image (PR)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/mock-server
+          push: false
+          tags: |
+            kt-fire-iot-mock-server:pr-${{ github.event.pull_request.number }}
+            kt-fire-iot-mock-server:${{ github.sha }}
+          cache-from: |
+            type=gha,scope=mock-server-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:buildcache
+          cache-to: type=gha,mode=max,scope=mock-server-build
+
+  # Push/Merge에서는 빌드, 푸시까지 수행
+  build-push:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -23,19 +50,41 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build MockServer image
+      - name: Build and Push MockServer image
         uses: docker/build-push-action@v5
         with:
           context: ./services/mock-server
-          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:buildcache
+          cache-from: |
+            type=gha,scope=mock-server-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:buildcache
+          cache-to: |
+            type=gha,mode=max,scope=mock-server-build
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:buildcache,mode=max
+
+      # 배포 단계 추가
+      - name: Deploy MockServer service
+        run: |
+          echo "🚀 Deploying MockServer service..."
+          echo "📦 Image: ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:${{ github.sha }}"
+          echo "⏰ Deployment time: $(date)"
+
+          # Docker Compose로 배포
+          echo "🐳 Starting deployment with Docker Compose..."
+
+          # 루트 디렉토리에서 mock-server 서비스만 재배포
+          docker-compose up -d mock-server
+
+          # 배포 상태 확인
+          docker-compose ps mock-server
+
+          echo "✅ MockServer service deployment completed successfully!"
