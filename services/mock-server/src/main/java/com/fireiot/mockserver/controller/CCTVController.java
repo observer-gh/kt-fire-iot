@@ -1,6 +1,6 @@
 package com.fireiot.mockserver.controller;
 
-import com.fireiot.mockserver.service.CCTVStreamingService;
+import com.fireiot.mockserver.service.CctvStreamingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +20,7 @@ public class CCTVController {
   private static final Logger logger = LoggerFactory.getLogger(CCTVController.class);
 
   @Autowired
-  private CCTVStreamingService cctvStreamingService;
+  private CctvStreamingService cctvStreamingService;
   @Value("${cctv.folder.path}")
   private String CCTV_FOLDER;
 

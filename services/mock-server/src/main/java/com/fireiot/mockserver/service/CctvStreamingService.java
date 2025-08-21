@@ -27,9 +27,9 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 
 @Service
-public class CCTVStreamingService {
+public class CctvStreamingService {
 
-  private static final Logger logger = LoggerFactory.getLogger(CCTVStreamingService.class);
+  private static final Logger logger = LoggerFactory.getLogger(CctvStreamingService.class);
 
   @Value("${cctv.topic.name:/topic/cctv-stream}")
   private String TOPIC_NAME;
@@ -49,7 +49,7 @@ public class CCTVStreamingService {
   private final AtomicInteger frameCounter = new AtomicInteger(0);
   private final AtomicInteger totalVideosPlayed = new AtomicInteger(0);
 
-  public CCTVStreamingService() {
+  public CctvStreamingService() {
     logger.info("🏗️ CctvStreamingService constructor called");
     logger.info("🌍 Environment info - Working directory: {}", System.getProperty("user.dir"));
     logger.info("🌍 Environment info - Java version: {}", System.getProperty("java.version"));
