@@ -81,13 +81,25 @@ jobs:
           # Azure Web App Container에 배포
           echo "☁️ Starting deployment to Azure Web App Container..."
 
-                    az webapp config container set \
+          # Azure 로그인
+          echo "🔐 Logging into Azure..."
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > azure_credentials.json
+          az login --service-principal \
+            --username $(cat azure_credentials.json | jq -r .clientId) \
+            --password $(cat azure_credentials.json | jq -r .clientSecret) \
+            --tenant $(cat azure_credentials.json | jq -r .tenantId)
+
+          # 구독 설정
+          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+          # 새로운 Azure CLI 옵션으로 배포
+          az webapp config container set \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --name app-dev-mock-server \
-            --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:${{ github.sha }} \
-            --docker-registry-server-url https://index.docker.io/v1/ \
-            --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
-            --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
+            --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:${{ github.sha }} \
+            --container-registry-url https://index.docker.io/v1/ \
+            --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+            --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
 
           # 배포 상태 확인
           echo "🔍 Checking deployment status..."
