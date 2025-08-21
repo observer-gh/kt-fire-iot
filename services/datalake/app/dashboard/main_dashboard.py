@@ -90,9 +90,10 @@ def main():
     facility_id = None if facility_filter == 'All' else facility_filter
     realtime_data = data_manager.get_realtime_data(facility_id=facility_id)
     
+    # Get latest readings for each equipment (always fetch, regardless of realtime_data)
+    equipment_status = data_manager.get_equipment_status()
+    
     if realtime_data:
-        # Get latest readings for each equipment
-        equipment_status = data_manager.get_equipment_status()
         
         # Layout for sensor charts
         chart_col1, chart_col2 = st.columns(2)
