@@ -74,17 +74,27 @@ jobs:
       # 배포 단계 추가
       - name: Deploy MockServer service
         run: |
-          echo "🚀 Deploying MockServer service..."
+          echo "🚀 Deploying MockServer service to Azure Web App Container..."
           echo "📦 Image: ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:${{ github.sha }}"
           echo "⏰ Deployment time: $(date)"
 
-          # Docker Compose로 배포
-          echo "🐳 Starting deployment with Docker Compose..."
+          # Azure Web App Container에 배포
+          echo "☁️ Starting deployment to Azure Web App Container..."
 
-          # 루트 디렉토리에서 mock-server 서비스만 재배포
-          docker-compose up -d mock-server
+                    az webapp config container set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-mock-server \
+            --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:${{ github.sha }} \
+            --docker-registry-server-url https://index.docker.io/v1/ \
+            --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
 
           # 배포 상태 확인
-          docker-compose ps mock-server
+          echo "🔍 Checking deployment status..."
+          az webapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-mock-server \
+            --query "{name:name, state:state, defaultHostName:defaultHostName, lastModifiedTime:lastModifiedTime}" \
+            --output table
 
-          echo "✅ MockServer service deployment completed successfully!"
+          echo "✅ MockServer service deployment to Azure Web App Container completed successfully!"

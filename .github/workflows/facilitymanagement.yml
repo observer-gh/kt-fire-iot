@@ -74,17 +74,26 @@ jobs:
       # 배포 단계 추가
       - name: Deploy FacilityManagement service
         run: |
-          echo "🚀 Deploying FacilityManagement service..."
+          echo "🚀 Deploying FacilityManagement service to Azure Web App Container..."
           echo "📦 Image: ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:${{ github.sha }}"
           echo "⏰ Deployment time: $(date)"
 
-          # Docker Compose로 배포
-          echo "🐳 Starting deployment with Docker Compose..."
+          # Azure Web App Container에 배포
+          echo "☁️ Starting deployment to Azure Web App Container..."
 
-          # 루트 디렉토리에서 facilitymanagement 서비스만 재배포
-          docker-compose up -d facilitymanagement
+                    az webapp config container set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-facilitymanagement \
+            --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-facilitymanagement:${{ github.sha }} \
+            --docker-registry-server-url https://index.docker.io/v1/ \
+            --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
 
           # 배포 상태 확인
-          docker-compose ps facilitymanagement
+          echo "🔍 Checking deployment status..."
+          az webapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-facilitymanagement \
+            --output table
 
-          echo "✅ FacilityManagement service deployment completed successfully!"
+          echo "✅ FacilityManagement service deployment to Azure Web App Container completed successfully!"

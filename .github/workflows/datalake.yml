@@ -107,18 +107,48 @@ jobs:
       # 배포 단계 추가
       - name: Deploy DataLake services
         run: |
-          echo "🚀 Deploying DataLake services..."
+          echo "🚀 Deploying DataLake services to Azure Web App Container..."
           echo "📦 API Image: ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-api:${{ github.sha }}"
           echo "📦 Dashboard Image: ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-dashboard:${{ github.sha }}"
           echo "⏰ Deployment time: $(date)"
 
-          # Docker Compose로 배포
-          echo "🐳 Starting deployment with Docker Compose..."
+          # Azure Web App Container에 배포
+          echo "☁️ Starting deployment to Azure Web App Container..."
 
-          # 루트 디렉토리에서 datalake 서비스들 재배포
-          docker-compose up -d datalake-api datalake-dashboard
+                    # DataLake API 서비스 배포
+          echo "🔧 Deploying DataLake API service..."
+          az webapp config container set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-datalake-api \
+            --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-api:${{ github.sha }} \
+            --docker-registry-server-url https://index.docker.io/v1/ \
+            --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
+
+          # DataLake Dashboard 서비스 배포
+          echo "🎨 Deploying DataLake Dashboard service..."
+          az webapp config container set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-datalake-dashboard \
+            --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-dashboard:${{ github.sha }} \
+            --docker-registry-server-url https://index.docker.io/v1/ \
+            --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
 
           # 배포 상태 확인
-          docker-compose ps datalake-api datalake-dashboard
+          echo "🔍 Checking deployment status..."
+          echo "📊 DataLake API service status:"
+          az webapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-datalake-api \
+            --query "{name:name, state:state, defaultHostName:defaultHostName, lastModifiedTime:lastModifiedTime}" \
+            --output table
 
-          echo "✅ DataLake services deployment completed successfully!"
+          echo "📊 DataLake Dashboard service status:"
+          az webapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-datalake-dashboard \
+            --query "{name:name, state:state, defaultHostName:defaultHostName, lastModifiedTime:lastModifiedTime}" \
+            --output table
+
+          echo "✅ DataLake services deployment to Azure Web App Container completed successfully!"

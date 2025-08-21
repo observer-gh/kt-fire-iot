@@ -74,17 +74,27 @@ jobs:
       # 배포 단계 추가
       - name: Deploy ControlTower service
         run: |
-          echo "🚀 Deploying ControlTower service..."
+          echo "🚀 Deploying ControlTower service to Azure Web App Container..."
           echo "📦 Image: ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-controltower:${{ github.sha }}"
           echo "⏰ Deployment time: $(date)"
 
-          # Docker Compose로 배포
-          echo "🐳 Starting deployment with Docker Compose..."
+          # Azure Web App Container에 배포
+          echo "☁️ Starting deployment to Azure Web App Container..."
 
-          # 루트 디렉토리에서 controltower 서비스만 재배포
-          docker-compose up -d controltower
+                    az webapp config container set \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-controltower \
+            --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-controltower:${{ github.sha }} \
+            --docker-registry-server-url https://index.docker.io/v1/ \
+            --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
 
           # 배포 상태 확인
-          docker-compose ps controltower
+          echo "🔍 Checking deployment status..."
+          az webapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-controltower \
+            --query "{name:name, state:state, defaultHostName:defaultHostName, lastModifiedTime:lastModifiedTime}" \
+            --output table
 
-          echo "✅ ControlTower service deployment completed successfully!"
+          echo "✅ ControlTower service deployment to Azure Web App Container completed successfully!"
