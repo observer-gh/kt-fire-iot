@@ -4,7 +4,7 @@ Real-time video analysis service for fire detection using Azure Computer Vision 
 
 ## Features
 
-- Process 4 CCTV RTSP streams simultaneously
+- Process CCTV streams via WebSocket streaming
 - Fire detection using Azure Computer Vision
 - Kafka event publishing for detected fires
 - Configurable confidence thresholds
@@ -19,11 +19,9 @@ AZURE_VISION_KEY=your-key
 # Kafka/Event Hubs
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 
-# CCTV Streams
-CCTV_STREAM_1=rtsp://camera1-url
-CCTV_STREAM_2=rtsp://camera2-url
-CCTV_STREAM_3=rtsp://camera3-url
-CCTV_STREAM_4=rtsp://camera4-url
+# WebSocket Streaming
+WEBSOCKET_URL=ws://localhost:8001/cctv-websocket
+DEFAULT_VIDEO_FILES=sample1.mp4,sample2.mp4
 
 # CCTV IDs
 CCTV_ID_1=cctv_001

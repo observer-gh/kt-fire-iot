@@ -6,3 +6,5 @@ requests==2.31.0
 Pillow==10.0.1
 numpy==1.24.3
 schedule==1.2.0
+websocket-client==1.6.4
+stomp.py==8.2.0

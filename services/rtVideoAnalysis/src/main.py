@@ -32,8 +32,8 @@ class RtVideoAnalysisService:
             if not self.config.AZURE_VISION_ENDPOINT or not self.config.AZURE_VISION_KEY:
                 raise ValueError("Azure Vision endpoint and key are required")
 
-            if not self.config.CCTV_STREAMS:
-                raise ValueError("At least one CCTV stream is required")
+            if not self.config.WEBSOCKET_URL:
+                raise ValueError("WebSocket URL is required")
 
             # Initialize Azure Vision client
             self.azure_vision_client = AzureVisionClient(
@@ -75,7 +75,9 @@ class RtVideoAnalysisService:
             self.running = True
 
             # Start video processing
-            self.video_processor.start_processing()
+            if not self.video_processor.start_processing():
+                logger.error("Failed to start video processing")
+                return False
 
             logger.info("RtVideoAnalysis service started successfully")
 

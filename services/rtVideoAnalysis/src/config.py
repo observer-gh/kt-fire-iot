@@ -38,6 +38,12 @@ class Config:
         os.getenv('CCTV_ID_4', 'cctv_004')
     ]
 
+    # WebSocket Streaming
+    WEBSOCKET_URL = os.getenv(
+        'WEBSOCKET_URL', 'ws://localhost:8001/cctv-websocket')
+    DEFAULT_VIDEO_FILES = os.getenv(
+        'DEFAULT_VIDEO_FILES', 'sample1.mp4,sample2.mp4').split(',')
+
     # Service
     SERVICE_NAME = 'rtVideoAnalysis'
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')

@@ -5,6 +5,7 @@ import threading
 from datetime import datetime
 from .azure_vision_client import AzureVisionClient
 from .event_publisher import EventPublisher
+from .stream_client import StreamClient
 
 logger = logging.getLogger(__name__)
 
@@ -16,70 +17,64 @@ class VideoProcessor:
         self.event_publisher = event_publisher
         self.running = False
         self.threads = []
+        self.stream_client = None
 
     def start_processing(self):
-        """Start processing all CCTV streams"""
+        """Start processing video streams via WebSocket"""
         self.running = True
 
-        for i, stream_url in enumerate(self.config.CCTV_STREAMS):
-            if stream_url:
-                cctv_id = self.config.CCTV_IDS[i]
-                thread = threading.Thread(
-                    target=self._process_stream,
-                    args=(stream_url, cctv_id),
-                    daemon=True
-                )
-                thread.start()
-                self.threads.append(thread)
-                logger.info(
-                    f"Started processing stream {cctv_id}: {stream_url}")
+        # Initialize WebSocket stream client
+        self.stream_client = StreamClient(self.config.WEBSOCKET_URL)
 
-        logger.info(f"Started {len(self.threads)} video processing threads")
+        if not self.stream_client.connect():
+            logger.error("Failed to connect to WebSocket streaming server")
+            return False
+
+        # Set frame callback for processing
+        self.stream_client.set_frame_callback(self._process_frame)
+
+        # Start streaming for each CCTV ID with different video files
+        for i, cctv_id in enumerate(self.config.CCTV_IDS):
+            video_file = self.config.DEFAULT_VIDEO_FILES[i % len(
+                self.config.DEFAULT_VIDEO_FILES)]
+            logger.info(f"Starting stream for {cctv_id} with {video_file}")
+
+            # Start stream in separate thread
+            thread = threading.Thread(
+                target=self._start_stream,
+                args=(cctv_id, video_file),
+                daemon=True
+            )
+            thread.start()
+            self.threads.append(thread)
+
+        logger.info(f"Started {len(self.threads)} video streaming threads")
+        return True
 
     def stop_processing(self):
         """Stop all video processing threads"""
         self.running = False
+
+        # Stop WebSocket streams
+        if self.stream_client:
+            self.stream_client.stop_stream()
+            self.stream_client.disconnect()
 
         for thread in self.threads:
             thread.join(timeout=5)
 
         logger.info("Stopped all video processing threads")
 
-    def _process_stream(self, stream_url, cctv_id):
-        """Process single CCTV stream"""
-        cap = None
-        last_processed = 0
-
+    def _start_stream(self, cctv_id, video_file):
+        """Start streaming for CCTV ID with specific video file"""
         try:
-            cap = cv2.VideoCapture(stream_url)
-
-            if not cap.isOpened():
-                logger.error(f"Failed to open stream: {stream_url}")
-                return
-
-            logger.info(f"Successfully opened stream: {cctv_id}")
-
-            while self.running:
-                ret, frame = cap.read()
-
-                if not ret:
-                    logger.warning(f"Failed to read frame from {cctv_id}")
-                    time.sleep(1)
-                    continue
-
-                current_time = time.time()
-
-                # Process frame at specified interval
-                if current_time - last_processed >= self.config.FRAME_INTERVAL_SECONDS:
-                    self._process_frame(frame, cctv_id)
-                    last_processed = current_time
-
+            if self.stream_client and self.stream_client.connected:
+                self.stream_client.start_stream(video_file)
+                logger.info(f"Started streaming {video_file} for {cctv_id}")
+            else:
+                logger.error(f"Stream client not connected for {cctv_id}")
         except Exception as e:
-            logger.error(f"Error processing stream {cctv_id}: {e}")
-        finally:
-            if cap:
-                cap.release()
-                logger.info(f"Released stream: {cctv_id}")
+            logger.error(f"Error starting stream for {cctv_id}: {e}")
 
     def _process_frame(self, frame, cctv_id):
         """Process single frame for fire detection"""
