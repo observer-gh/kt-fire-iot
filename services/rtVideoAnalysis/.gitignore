@@ -38,10 +38,6 @@ ENV/
 *.log
 logs/
 
-# Environment variables
-.env
-.env.local
-.env.production
 
 # Test coverage
 .coverage
