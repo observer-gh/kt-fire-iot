@@ -48,8 +48,8 @@ fi
 echo -e "${YELLOW}📦 Creating resource group...${NC}"
 az group create --name $RESOURCE_GROUP --location $LOCATION --output none
 
-# Check Docker images exist in Docker Hub
-echo -e "${YELLOW}🐳 Checking Docker images in Docker Hub...${NC}"
+# Check Docker images exist in Docker Hub (parallel)
+echo -e "${YELLOW}🐳 Checking Docker images in Docker Hub (parallel)...${NC}"
 
 # Define services with their image names
 services=(
@@ -61,16 +61,42 @@ services=(
     "mock-server:kt-fire-iot-mock-server"
 )
 
-for service_info in "${services[@]}"; do
-    service=$(echo "$service_info" | cut -d: -f1)
-    image_name=$(echo "$service_info" | cut -d: -f2)
-    echo -e "${YELLOW}Checking $service ($image_name)...${NC}"
-    if ! docker manifest inspect $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG > /dev/null 2>&1; then
-        echo -e "${RED}❌ Image $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG not found in Docker Hub${NC}"
-        exit 1
+# Function to check a single image
+check_image() {
+    local service_info=$1
+    local service=$(echo "$service_info" | cut -d: -f1)
+    local image_name=$(echo "$service_info" | cut -d: -f2)
+    
+    if docker manifest inspect $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Found $service ($image_name)${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Missing $service ($image_name)${NC}"
+        return 1
     fi
-    echo -e "${GREEN}✅ Found $DOCKER_HUB_ORG/$image_name:$IMAGE_TAG${NC}"
+}
+
+# Run all checks in parallel
+pids=()
+for service_info in "${services[@]}"; do
+    check_image "$service_info" &
+    pids+=($!)
 done
+
+# Wait for all checks to complete
+failed=0
+for pid in "${pids[@]}"; do
+    if ! wait $pid; then
+        failed=1
+    fi
+done
+
+if [ $failed -eq 1 ]; then
+    echo -e "${RED}❌ Some Docker images are missing from Docker Hub${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ All Docker images found!${NC}"
 
 # Deploy infrastructure
 echo -e "${YELLOW}🏗️ Deploying infrastructure...${NC}"

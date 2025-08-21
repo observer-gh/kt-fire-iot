@@ -20,8 +20,14 @@ param postgresAdminPassword string
 @description('Event Hubs namespace name')
 param eventHubNamespaceName string = 'fire-iot-eventhub-${environment}'
 
+@description('Azure Computer Vision endpoint')
+param azureVisionEndpoint string
+
+@description('Azure Computer Vision API key')
+@secure()
+param azureVisionKey string
+
 // Variables
-var containerAppsEnvironmentName = 'fire-iot-${environment}' // not used for web app
 var appNamePrefix = 'app-${environment}'
 var vnetName = 'fire-iot-vnet-${environment}'
 var containerAppsSubnetName = 'container-apps-subnet'
@@ -132,6 +138,16 @@ resource controlTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-previe
   }
 }
 
+resource fireDetectionTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+  parent: eventHubNamespace
+  name: 'rtVideoAnalysis.fireDetected'
+  properties: {
+    messageRetentionInDays: 7
+    partitionCount: 4
+    status: 'Active'
+  }
+}
+
 // Event Hub Authorization Rule
 resource eventHubAuthRule 'Microsoft.EventHub/namespaces/authorizationRules@2023-01-01-preview' = {
   parent: eventHubNamespace
@@ -223,6 +239,8 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
     minimumTlsVersion: '1.2'
   }
 }
+
+
 
 // App Service Plan
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
@@ -318,6 +336,7 @@ resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'REDIS_URL'
           value: 'redis://${redisCache.properties.hostName}:6380'
         }
+
         {
           name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
@@ -356,6 +375,7 @@ resource dataLakeDashboardApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'REDIS_URL'
           value: 'redis://${redisCache.properties.hostName}:6380'
         }
+
         {
           name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
