@@ -1,0 +1,5 @@
+websocket-client==1.6.4
+Pillow==10.0.1
+python-dotenv==1.0.0
+loguru==0.7.2
+asyncio-mqtt==0.13.0
