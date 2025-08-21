@@ -2,6 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
+import json
 
 from .storage_service import StorageService
 from .publisher import KafkaPublisher
@@ -70,6 +71,9 @@ class BatchScheduler:
     
     async def _flush_redis_data(self):
         """Redis의 센서 데이터를 로컬 스토리지에 flush"""
+        processing_start_time = datetime.utcnow()
+        data_list = []
+        
         try:
             # Redis에서 모든 센서 데이터 조회
             sensor_data_list = redis_client.flush_sensor_data_to_storage()
@@ -103,6 +107,7 @@ class BatchScheduler:
                     # ProcessedSensorData 객체로 변환
                     try:
                         processed_data = ProcessedSensorData(**sensor_data)
+                        data_list.append(processed_data)
                     except Exception as e:
                         logger.error(f"ProcessedSensorData 변환 실패 ({sensor_data.get('equipment_id', 'unknown')}): {e}")
                         logger.error(f"데이터 내용: {sensor_data}")
@@ -138,6 +143,49 @@ class BatchScheduler:
                 clear_success = redis_client.clear_sensor_data()
                 if clear_success:
                     logger.info(f"Redis 센서 데이터 {saved_count}개를 로컬 스토리지로 flush 완료")
+                    
+                    # 메타데이터 생성 및 저장
+                    processing_end_time = datetime.utcnow()
+                    
+                    # 스토리지 파일 경로 생성 (flush된 데이터의 메타데이터용)
+                    timestamp = processing_end_time.strftime("%Y%m%d_%H%M%S")
+                    storage_path = f"redis_flush_{timestamp}"
+                    
+                    # 추가 정보
+                    additional_info = {
+                        "redis_keys_processed": len(sensor_data_list),
+                        "flush_type": "scheduled",
+                        "batch_id": f"flush_{timestamp}"
+                    }
+                    
+                    # 메타데이터 생성 (Mock Storage와 StorageService 모두 지원)
+                    try:
+                        if hasattr(self.storage_service, 'create_flush_metadata'):
+                            metadata = self.storage_service.create_flush_metadata(
+                                data_list=data_list,
+                                storage_path=storage_path,
+                                processing_start_time=processing_start_time,
+                                processing_end_time=processing_end_time,
+                                error_count=error_count,
+                                success_count=saved_count,
+                                additional_info=additional_info
+                            )
+                            
+                            # 메타데이터를 PostgreSQL에 저장
+                            if hasattr(self.storage_service, 'save_storage_metadata'):
+                                metadata_saved = self.storage_service.save_storage_metadata(metadata)
+                                if metadata_saved:
+                                    logger.info(f"Flush 메타데이터가 PostgreSQL에 저장되었습니다: {metadata.metadata_id}")
+                                else:
+                                    logger.warning("Flush 메타데이터 저장에 실패했습니다")
+                            else:
+                                logger.warning("Storage service does not support metadata saving")
+                        else:
+                            logger.warning("Storage service does not support metadata creation")
+                    except Exception as e:
+                        logger.error(f"메타데이터 생성/저장 중 오류 발생: {e}")
+                        # 메타데이터 오류는 전체 flush를 막지 않음
+                        
                 else:
                     logger.warning("Redis 센서 데이터 정리 실패")
             elif error_count > 0:
@@ -147,14 +195,91 @@ class BatchScheduler:
                 
         except Exception as e:
             logger.error(f"Redis 데이터 flush 오류: {e}")
+            # 에러 발생 시에도 메타데이터 저장 시도
+            try:
+                processing_end_time = datetime.utcnow()
+                timestamp = processing_end_time.strftime("%Y%m%d_%H%M%S")
+                storage_path = f"redis_flush_error_{timestamp}"
+                
+                additional_info = {
+                    "error_message": str(e),
+                    "flush_type": "error",
+                    "batch_id": f"flush_error_{timestamp}"
+                }
+                
+                metadata = self.storage_service.create_flush_metadata(
+                    data_list=data_list,
+                    storage_path=storage_path,
+                    processing_start_time=processing_start_time,
+                    processing_end_time=processing_end_time,
+                    error_count=len(sensor_data_list) if 'sensor_data_list' in locals() else 0,
+                    success_count=0,
+                    additional_info=additional_info
+                )
+                
+                self.storage_service.save_storage_metadata(metadata)
+                logger.info(f"에러 상황 메타데이터가 PostgreSQL에 저장되었습니다: {metadata.metadata_id}")
+            except Exception as metadata_error:
+                logger.error(f"에러 상황 메타데이터 저장 실패: {metadata_error}")
     
     async def _process_batch_upload(self):
         """Process a batch upload"""
+        processing_start_time = datetime.utcnow()
+        
         try:
             # Upload batch to storage
             filepath = self.storage_service.upload_batch_to_storage()
             if filepath:
                 logger.info(f"Batch uploaded to storage: {filepath}")
+                
+                # 메타데이터 생성 및 저장
+                processing_end_time = datetime.utcnow()
+                
+                # 배치 데이터 정보 수집
+                try:
+                    with open(filepath, 'r') as f:
+                        batch_info = json.load(f)
+                    record_count = batch_info.get("record_count", 0)
+                    batch_id = batch_info.get("batch_id", "unknown")
+                except Exception as e:
+                    logger.warning(f"배치 파일 정보 읽기 실패: {e}")
+                    record_count = 0
+                    batch_id = "unknown"
+                
+                # 추가 정보
+                additional_info = {
+                    "batch_id": batch_id,
+                    "upload_type": "scheduled_batch",
+                    "file_path": filepath
+                }
+                
+                # 메타데이터 생성
+                try:
+                    if hasattr(self.storage_service, 'create_flush_metadata'):
+                        metadata = self.storage_service.create_flush_metadata(
+                            data_list=[],  # 배치 업로드의 경우 개별 데이터 리스트는 없음
+                            storage_path=filepath,
+                            processing_start_time=processing_start_time,
+                            processing_end_time=processing_end_time,
+                            error_count=0,
+                            success_count=record_count,
+                            additional_info=additional_info
+                        )
+                        
+                        # 메타데이터를 PostgreSQL에 저장
+                        if hasattr(self.storage_service, 'save_storage_metadata'):
+                            metadata_saved = self.storage_service.save_storage_metadata(metadata)
+                            if metadata_saved:
+                                logger.info(f"배치 업로드 메타데이터가 PostgreSQL에 저장되었습니다: {metadata.metadata_id}")
+                            else:
+                                logger.warning("배치 업로드 메타데이터 저장에 실패했습니다")
+                        else:
+                            logger.warning("Storage service does not support metadata saving")
+                    else:
+                        logger.warning("Storage service does not support metadata creation")
+                except Exception as e:
+                    logger.error(f"배치 업로드 메타데이터 생성/저장 중 오류 발생: {e}")
+                    # 메타데이터 오류는 전체 업로드를 막지 않음
                 
                 # Publish data saved event
                 # Note: This is a simplified approach - you might want to track which data was uploaded
@@ -177,6 +302,32 @@ class BatchScheduler:
                 
         except Exception as e:
             logger.error(f"Error processing batch upload: {e}")
+            # 에러 발생 시에도 메타데이터 저장 시도
+            try:
+                processing_end_time = datetime.utcnow()
+                timestamp = processing_end_time.strftime("%Y%m%d_%H%M%S")
+                storage_path = f"batch_upload_error_{timestamp}"
+                
+                additional_info = {
+                    "error_message": str(e),
+                    "upload_type": "error",
+                    "batch_id": f"batch_error_{timestamp}"
+                }
+                
+                metadata = self.storage_service.create_flush_metadata(
+                    data_list=[],
+                    storage_path=storage_path,
+                    processing_start_time=processing_start_time,
+                    processing_end_time=processing_end_time,
+                    error_count=1,
+                    success_count=0,
+                    additional_info=additional_info
+                )
+                
+                self.storage_service.save_storage_metadata(metadata)
+                logger.info(f"배치 업로드 에러 메타데이터가 PostgreSQL에 저장되었습니다: {metadata.metadata_id}")
+            except Exception as metadata_error:
+                logger.error(f"배치 업로드 에러 메타데이터 저장 실패: {metadata_error}")
     
     async def force_batch_upload(self):
         """Force a batch upload regardless of conditions"""

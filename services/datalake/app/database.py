@@ -108,9 +108,29 @@ def create_tables():
     );
     """
     
+    create_storage_metadata_table = """
+    CREATE TABLE IF NOT EXISTS storage_metadata (
+        metadata_id VARCHAR(36) PRIMARY KEY,
+        flush_timestamp TIMESTAMP NOT NULL,
+        data_start_time TIMESTAMP NOT NULL,
+        data_end_time TIMESTAMP NOT NULL,
+        record_count INTEGER NOT NULL,
+        storage_path TEXT NOT NULL,
+        storage_type VARCHAR(50) NOT NULL,
+        file_size_bytes BIGINT,
+        compression_ratio DECIMAL(5,4),
+        processing_duration_ms INTEGER,
+        error_count INTEGER DEFAULT 0,
+        success_count INTEGER DEFAULT 0,
+        additional_info TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """
+    
     try:
         execute_query(create_realtime_table, fetch=False)
         execute_query(create_alert_table, fetch=False)
+        execute_query(create_storage_metadata_table, fetch=False)
         logger.info("Database tables created successfully")
     except Exception as e:
         logger.error(f"Failed to create tables: {e}")

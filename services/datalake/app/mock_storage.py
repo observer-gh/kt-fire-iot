@@ -2,11 +2,11 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 import uuid
 
 from .storage_interface import StorageInterface
-from .db_models import Realtime, Alert
+from .db_models import Realtime, Alert, StorageMetadata
 from .models import ProcessedSensorData
 from .database import execute_query
 
@@ -28,6 +28,82 @@ class MockStorage(StorageInterface):
         
         logger.info(f"MockStorage initialized with local path: {self.local_storage_path}")
         logger.info(f"Batch size: {self.batch_size}, Interval: {self.batch_interval} minutes")
+    
+    def save_storage_metadata(self, metadata: StorageMetadata) -> bool:
+        """Save storage metadata to PostgreSQL database"""
+        try:
+            # additional_info를 JSON 문자열로 변환
+            metadata_dict = metadata.to_dict()
+            if metadata_dict.get('additional_info'):
+                import json
+                metadata_dict['additional_info'] = json.dumps(metadata_dict['additional_info'])
+            
+            insert_metadata_query = """
+            INSERT INTO storage_metadata (
+                metadata_id, flush_timestamp, data_start_time, data_end_time,
+                record_count, storage_path, storage_type, file_size_bytes,
+                compression_ratio, processing_duration_ms, error_count,
+                success_count, additional_info, created_at
+            ) VALUES (
+                %(metadata_id)s, %(flush_timestamp)s, %(data_start_time)s, %(data_end_time)s,
+                %(record_count)s, %(storage_path)s, %(storage_type)s, %(file_size_bytes)s,
+                %(compression_ratio)s, %(processing_duration_ms)s, %(error_count)s,
+                %(success_count)s, %(additional_info)s, %(created_at)s
+            )
+            """
+            execute_query(insert_metadata_query, metadata_dict, fetch=False)
+            logger.info(f"[MOCK] Storage metadata saved successfully: {metadata.metadata_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[MOCK] Failed to save storage metadata: {e}")
+            return False
+    
+    def create_flush_metadata(self, 
+                            data_list: List[ProcessedSensorData],
+                            storage_path: str,
+                            processing_start_time: datetime,
+                            processing_end_time: datetime,
+                            error_count: int = 0,
+                            success_count: int = 0,
+                            additional_info: Optional[Dict[str, Any]] = None) -> StorageMetadata:
+        """Redis flush 시 메타데이터를 생성합니다"""
+        
+        # 파일 크기 계산
+        file_size_bytes = None
+        try:
+            if os.path.exists(storage_path):
+                file_size_bytes = os.path.getsize(storage_path)
+        except Exception as e:
+            logger.warning(f"Could not get file size: {e}")
+        
+        # 처리 시간 계산 (밀리초)
+        processing_duration_ms = int((processing_end_time - processing_start_time).total_seconds() * 1000)
+        
+        # 데이터 시간 범위 계산
+        if data_list:
+            data_start_time = min(data.measured_at for data in data_list if data.measured_at)
+            data_end_time = max(data.measured_at for data in data_list if data.measured_at)
+        else:
+            data_start_time = processing_start_time
+            data_end_time = processing_end_time
+        
+        metadata = StorageMetadata(
+            metadata_id=str(uuid.uuid4()),
+            flush_timestamp=processing_end_time,
+            data_start_time=data_start_time,
+            data_end_time=data_end_time,
+            record_count=len(data_list),
+            storage_path=storage_path,
+            storage_type="redis_flush",
+            file_size_bytes=file_size_bytes,
+            processing_duration_ms=processing_duration_ms,
+            error_count=error_count,
+            success_count=success_count,
+            additional_info=additional_info or {}
+        )
+        
+        return metadata
     
     def save_sensor_data(self, processed_data: ProcessedSensorData) -> bool:
         """Save processed sensor data to database (same as real storage)"""
@@ -61,28 +137,46 @@ class MockStorage(StorageInterface):
             
             # Create alert record if anomaly detected
             if processed_data.is_anomaly:
-                alert_record = Alert(
-                    alert_id=str(uuid.uuid4())[:10],
-                    equipment_id=processed_data.equipment_id,
-                    facility_id=processed_data.facility_id,
-                    equipment_location=processed_data.equipment_location,
-                    alert_type=self._get_alert_type(processed_data.anomaly_metric),
-                    severity=self._get_severity(processed_data.anomaly_metric, processed_data.anomaly_value),
-                    status="ACTIVE",
-                    created_at=datetime.utcnow(),
-                    version=1
-                )
-                
-                insert_alert_query = """
-                INSERT INTO alert (
-                    alert_id, equipment_id, facility_id, equipment_location,
-                    alert_type, severity, status, created_at, updated_at, version
-                ) VALUES (
-                    %(alert_id)s, %(equipment_id)s, %(facility_id)s, %(equipment_location)s,
-                    %(alert_type)s, %(severity)s, %(status)s, %(created_at)s, %(updated_at)s, %(version)s
-                )
-                """
-                execute_query(insert_alert_query, alert_record.to_dict(), fetch=False)
+                try:
+                    # anomaly_value를 안전하게 처리
+                    anomaly_value = processed_data.anomaly_value
+                    if hasattr(anomaly_value, 'value'):
+                        # 객체인 경우 value 속성 사용
+                        anomaly_value = anomaly_value.value
+                    elif isinstance(anomaly_value, str):
+                        # 문자열인 경우 그대로 사용
+                        pass
+                    else:
+                        # 기타 타입인 경우 문자열로 변환
+                        anomaly_value = str(anomaly_value)
+                    
+                    alert_record = Alert(
+                        alert_id=str(uuid.uuid4())[:10],
+                        equipment_id=processed_data.equipment_id,
+                        facility_id=processed_data.facility_id,
+                        equipment_location=processed_data.equipment_location,
+                        alert_type=self._get_alert_type(processed_data.anomaly_metric),
+                        severity=self._get_severity(processed_data.anomaly_metric, anomaly_value),
+                        status="ACTIVE",
+                        created_at=datetime.utcnow(),
+                        version=1
+                    )
+                    
+                    insert_alert_query = """
+                    INSERT INTO alert (
+                        alert_id, equipment_id, facility_id, equipment_location,
+                        alert_type, severity, status, created_at, updated_at, version
+                    ) VALUES (
+                        %(alert_id)s, %(equipment_id)s, %(facility_id)s, %(equipment_location)s,
+                        %(alert_type)s, %(severity)s, %(status)s, %(created_at)s, %(updated_at)s, %(version)s
+                    )
+                    """
+                    execute_query(insert_alert_query, alert_record.to_dict(), fetch=False)
+                    logger.info(f"[MOCK] Alert created for equipment {processed_data.equipment_id}")
+                    
+                except Exception as e:
+                    logger.error(f"[MOCK] Failed to create alert for equipment {processed_data.equipment_id}: {e}")
+                    # 알림 생성 실패는 센서 데이터 저장을 막지 않음
             
             logger.info(f"[MOCK] Saved sensor data for equipment {processed_data.equipment_id}")
             return True
@@ -102,13 +196,32 @@ class MockStorage(StorageInterface):
         }
         return metric_map.get(metric, "CUSTOM")
     
-    def _get_severity(self, metric: str, value: float) -> str:
+    def _get_severity(self, metric: str, value: Any) -> str:
         """Determine severity based on metric and value"""
-        if metric == "temperature" and value >= 95:
-            return "EMERGENCY"
-        elif metric in ["smoke_density", "co_level", "gas_level"] and value >= 500:
-            return "EMERGENCY"
-        else:
+        try:
+            # value가 문자열인 경우 float로 변환 시도
+            if isinstance(value, str):
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    logger.warning(f"Could not convert value '{value}' to float for metric '{metric}'")
+                    return "WARN"
+            
+            # value가 숫자가 아닌 경우 기본값 반환
+            if not isinstance(value, (int, float)):
+                logger.warning(f"Value '{value}' is not numeric for metric '{metric}'")
+                return "WARN"
+            
+            # 기존 로직
+            if metric == "temperature" and value >= 95:
+                return "EMERGENCY"
+            elif metric in ["smoke_density", "co_level", "gas_level"] and value >= 500:
+                return "EMERGENCY"
+            else:
+                return "WARN"
+                
+        except Exception as e:
+            logger.error(f"Error determining severity for metric '{metric}' with value '{value}': {e}")
             return "WARN"
     
     def should_upload_batch(self) -> bool:

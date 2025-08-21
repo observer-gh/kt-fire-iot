@@ -48,6 +48,7 @@ class ProcessedSensorData(BaseModel):
     anomaly_metric: Optional[str] = None
     anomaly_value: Optional[float] = None
     anomaly_threshold: Optional[float] = None
+    severity: str = "WARN"  # Default severity level
     metadata: Optional[Dict[str, Any]] = None
 
 

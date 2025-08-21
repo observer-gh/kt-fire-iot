@@ -269,7 +269,7 @@ services:
       - ALERT_KAFKA_GROUP_ID=alert-service
       - ALERT_KAFKA_ALERT_SUCCESS_TOPIC=alert.alertSendSuccess
       - ALERT_KAFKA_ALERT_FAIL_TOPIC=alert.alertSendFail
-      - ALERT_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/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
+      - ALERT_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/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
       - KAFKA_BROKERS=kafka:29092
       - REDIS_URL=redis://redis:6379
     networks:
