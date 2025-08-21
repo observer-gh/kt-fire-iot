@@ -3,10 +3,6 @@ import json
 import base64
 import cv2
 import numpy as np
-import asyncio
-import tornado.ioloop
-import tornado.web
-import tornado.httpclient
 import websocket
 import threading
 import time
@@ -132,38 +128,6 @@ class StreamClient:
         self.frame_callback = None
         self.running = False
         self.ws_client = None
-        self.ioloop = None
-
-    async def connect_async(self):
-        """Connect to SockJS WebSocket streaming server"""
-        try:
-            if not self.websocket_url:
-                raise ValueError("WebSocket URL not configured")
-
-            logger.info(f"Connecting to SockJS: {self.websocket_url}")
-
-            # Get SockJS session info
-            session_info = await self._get_sockjs_session()
-            if not session_info:
-                raise Exception("Failed to get SockJS session")
-
-            # Create WebSocket URL with session
-            ws_url = f"{self.websocket_url}/{session_info['server_id']}/{session_info['session_id']}/websocket"
-            logger.info(f"Connecting to WebSocket: {ws_url}")
-
-            # Create and connect WebSocket client
-            self.ws_client = SockJSWebSocketClient(ws_url, self.frame_callback)
-
-            if self.ws_client.connect():
-                self.connected = True
-                logger.info("Connected to SockJS streaming server")
-                return True
-            else:
-                raise Exception("WebSocket connection failed")
-
-        except Exception as e:
-            logger.error(f"Failed to connect: {e}")
-            return False
 
     def connect(self):
         """Connect to SockJS WebSocket streaming server"""
@@ -173,8 +137,8 @@ class StreamClient:
 
             logger.info(f"Connecting to SockJS: {self.websocket_url}")
 
-            # Simple approach - connect directly without session negotiation for now
-            ws_url = f"{self.websocket_url.replace('ws://', 'ws://')}/websocket"
+            # Simple approach - connect directly to SockJS WebSocket endpoint
+            ws_url = f"{self.websocket_url}/websocket"
             logger.info(f"Connecting to WebSocket: {ws_url}")
 
             # Create and connect WebSocket client
@@ -190,40 +154,6 @@ class StreamClient:
         except Exception as e:
             logger.error(f"Failed to connect: {e}")
             return False
-
-    async def _get_sockjs_session(self):
-        """Get SockJS session information"""
-        try:
-            # Convert ws:// to http:// for HTTP requests
-            base_url = self.websocket_url.replace('ws://', 'http://')
-
-            # Create HTTP client
-            http_client = tornado.httpclient.AsyncHTTPClient()
-
-            # Get server info
-            info_url = f"{base_url}/info"
-            response = await http_client.fetch(info_url)
-            if response.code != 200:
-                logger.error(f"Failed to get SockJS info: {response.code}")
-                return None
-
-            # Create session
-            session_url = f"{base_url}/000/xhr"
-            response = await http_client.fetch(session_url, method='POST', body="")
-            if response.code != 200:
-                logger.error(
-                    f"Failed to create SockJS session: {response.code}")
-                return None
-
-            # Extract session ID from response
-            session_id = response.body.decode().strip()
-            return {
-                "server_id": "000",
-                "session_id": session_id
-            }
-        except Exception as e:
-            logger.error(f"Error getting SockJS session: {e}")
-            return None
 
     def start_stream(self, video_file_name):
         """Start video streaming"""

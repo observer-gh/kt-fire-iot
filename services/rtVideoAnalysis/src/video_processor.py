@@ -2,7 +2,6 @@ import logging
 import cv2
 import time
 import threading
-import asyncio
 from datetime import datetime
 from .azure_vision_client import AzureVisionClient
 from .event_publisher import EventPublisher
