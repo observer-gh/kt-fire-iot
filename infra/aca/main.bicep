@@ -721,14 +721,14 @@ resource videoAnalysisApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'KAFKA_SASL_MECHANISM'
           value: 'PLAIN'
         }
-        {
-          name: 'KAFKA_SASL_USERNAME'
-          value: '$ConnectionString'
-        }
-        {
-          name: 'KAFKA_SASL_PASSWORD'
-          value: eventHubAuthRule.listKeys().primaryConnectionString
-        }
+        // {
+        //   name: 'KAFKA_SASL_USERNAME'
+        //   value: '$ConnectionString'
+        // }
+        // {
+        //   name: 'KAFKA_SASL_PASSWORD'
+        //   value: eventHubAuthRule.listKeys().primaryConnectionString
+        // }
         {
           name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString

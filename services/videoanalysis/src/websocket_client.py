@@ -18,37 +18,50 @@ class StompWebSocketClient:
         self.on_frame_received = on_frame_received
         self.subscription_id = 1
 
-    def connect(self):
-        """Connect to the WebSocket server"""
-        try:
-            self.ws = websocket.WebSocketApp(
-                Config.WEBSOCKET_URL,
-                on_open=self._on_open,
-                on_message=self._on_message,
-                on_error=self._on_error,
-                on_close=self._on_close
-            )
+    def connect(self, max_retries=3, retry_delay=5):
+        """Connect to the WebSocket server with retry logic"""
+        for attempt in range(max_retries):
+            try:
+                logger.info(
+                    f"Attempting WebSocket connection (attempt {attempt + 1}/{max_retries})")
 
-            # Run in separate thread
-            wst = threading.Thread(target=self.ws.run_forever)
-            wst.daemon = True
-            wst.start()
+                self.ws = websocket.WebSocketApp(
+                    Config.WEBSOCKET_URL,
+                    on_open=self._on_open,
+                    on_message=self._on_message,
+                    on_error=self._on_error,
+                    on_close=self._on_close
+                )
 
-            # Wait for connection
-            timeout = 10
-            while not self.connected and timeout > 0:
-                time.sleep(0.1)
-                timeout -= 0.1
+                # Run in separate thread
+                wst = threading.Thread(target=self.ws.run_forever)
+                wst.daemon = True
+                wst.start()
 
-            if not self.connected:
-                raise Exception("Failed to connect within timeout")
+                # Wait for connection with longer timeout
+                timeout = 30
+                while not self.connected and timeout > 0:
+                    time.sleep(0.1)
+                    timeout -= 0.1
 
-            logger.info("WebSocket connected successfully")
-            return True
+                if self.connected:
+                    logger.info("WebSocket connected successfully")
+                    return True
+                else:
+                    logger.warning(
+                        f"Connection attempt {attempt + 1} failed - timeout")
+                    if attempt < max_retries - 1:
+                        logger.info(f"Retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
 
-        except Exception as e:
-            logger.error(f"Failed to connect: {e}")
-            return False
+            except Exception as e:
+                logger.error(f"Connection attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+
+        logger.error(f"Failed to connect after {max_retries} attempts")
+        return False
 
     def _on_open(self, ws):
         """Handle WebSocket connection opened"""
@@ -184,3 +197,7 @@ class StompWebSocketClient:
             self.ws.close()
             self.connected = False
             self.subscribed = False
+
+    def is_connected(self):
+        """Check if WebSocket is connected and healthy"""
+        return self.connected and self.ws and self.ws.sock and self.ws.sock.connected

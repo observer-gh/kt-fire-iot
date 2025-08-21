@@ -27,10 +27,14 @@ USER videoanalysis
 ENV PYTHONPATH=/app
 ENV LOG_LEVEL=INFO
 ENV PYTHONUNBUFFERED=1
+ENV HEALTH_PORT=8080
+
+# Expose health check port
+EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/healthz/live', timeout=5)" || exit 1
 
 # Run the service
 CMD ["python", "main.py"]

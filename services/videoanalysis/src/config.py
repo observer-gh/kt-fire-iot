@@ -34,18 +34,21 @@ class Config:
 
     # Environment
     ENVIRONMENT = os.getenv('PROFILE', 'local')  # local, cloud
-    
+
     # Kafka (for local development)
     KAFKA_BOOTSTRAP_SERVERS = os.getenv(
         'KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
     FIRE_DETECTED_TOPIC = 'videoAnalysis.fireDetected'
-    
+
     # Azure Event Hub (for cloud)
-    EVENTHUB_CONNECTION_STRING = os.getenv('EVENTHUB_CONNECTION_STRING')
+    EVENTHUB_CONN = os.getenv('EVENTHUB_CONN')
     EVENTHUB_FIRE_DETECTED_TOPIC = 'videoAnalysis.fireDetected'
 
     # Service
     SERVICE_NAME = 'videoanalysis'
+
+    # Health check server
+    HEALTH_PORT = int(os.getenv('HEALTH_PORT', '8080'))
 
     # Logging
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
