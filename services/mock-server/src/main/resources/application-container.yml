@@ -1,0 +1,60 @@
+# # 컨테이너 환경 전용 설정
+# server:
+#   port: 8001
+
+# spring:
+#   application:
+#     name: mock-server
+  
+#   profiles:
+#     active: container
+  
+#   # 정적 리소스 설정 (컨테이너 환경)
+#   web:
+#     resources:
+#       static-locations: classpath:/static/
+  
+#   datasource:
+#     url: jdbc:h2:mem:testdb
+#     driver-class-name: org.h2.Driver
+#     username: sa
+#     password: 
+  
+#   h2:
+#     console:
+#       enabled: true
+#       path: /h2-console
+  
+#   jpa:
+#     hibernate:
+#       ddl-auto: create-drop
+#     show-sql: true
+#     properties:
+#       hibernate:
+#         format_sql: true
+#         dialect: org.hibernate.dialect.H2Dialect
+  
+#   flyway:
+#     enabled: false
+
+# logging:
+#   level:
+#     com.fireiot.mockserver: DEBUG
+#     org.springframework.web: DEBUG
+#     org.hibernate.SQL: DEBUG
+#     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# # Swagger UI 설정
+# springdoc:
+#   api-docs:
+#     path: /api-docs
+#   swagger-ui:
+#     path: /swagger-ui.html
+#     operations-sorter: method
+
+# # CCTV 스트리밍 설정 (컨테이너 환경 최적화)
+# cctv:
+#   folder:
+#     path: ./cctv  # 컨테이너 내 상대 경로
+#   topic:
+#     name: "/topic/cctv-stream"

@@ -54,4 +54,6 @@ springdoc:
 # CCTV 스트리밍 설정
 cctv:
   folder:
-    path: ${user.dir}/services/mock-server/cctv
+    path: ./cctv
+  topic:
+    name: "/topic/cctv-stream"
