@@ -19,7 +19,7 @@ public class SensorAnomalyConsumer {
   }
 
   @KafkaListener(
-      topics = "${kafka.topics.sensor-anomaly-detected:datalake.sensorDataAnomalyDetected}",
+      topics = "${kafka.topics.sensor-anomaly-detected:dataLake.sensorDataAnomalyDetected}",
       groupId = "${kafka.consumer.group-id:controltower-group}",
       containerFactory = "sensorAnomalyKafkaListenerContainerFactory")
   public void consumeSensorAnomalyDetected(SensorAnomalyDetected event) {

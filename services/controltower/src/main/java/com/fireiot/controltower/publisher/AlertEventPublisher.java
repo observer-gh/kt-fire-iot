@@ -15,10 +15,10 @@ public class AlertEventPublisher {
 
   private final KafkaTemplate<String, Object> kafkaTemplate;
 
-  @Value("${kafka.topics.warning-alert-issued:controltower.warningAlertIssued}")
+  @Value("${kafka.topics.warning-alert-issued:controlTower.warningAlertIssued}")
   private String warningAlertTopic;
 
-  @Value("${kafka.topics.emergency-alert-issued:controltower.emergencyAlertIssued}")
+  @Value("${kafka.topics.emergency-alert-issued:controlTower.emergencyAlertIssued}")
   private String emergencyAlertTopic;
 
   public AlertEventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {

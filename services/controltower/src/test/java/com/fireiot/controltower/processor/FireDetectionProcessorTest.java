@@ -38,7 +38,7 @@ class FireDetectionProcessorTest {
     fireDetectionProcessor.processVideoFireDetection(event);
 
     // Then
-    ArgumentCaptor<FireDetectionNotified> alertCaptor = 
+    ArgumentCaptor<FireDetectionNotified> alertCaptor =
         ArgumentCaptor.forClass(FireDetectionNotified.class);
     verify(fireDetectionEventPublisher).publishFireDetectionNotification(alertCaptor.capture());
 
@@ -63,7 +63,7 @@ class FireDetectionProcessorTest {
     fireDetectionProcessor.processVideoFireDetection(event);
 
     // Then
-    ArgumentCaptor<FireDetectionNotified> alertCaptor = 
+    ArgumentCaptor<FireDetectionNotified> alertCaptor =
         ArgumentCaptor.forClass(FireDetectionNotified.class);
     verify(fireDetectionEventPublisher).publishFireDetectionNotification(alertCaptor.capture());
 
@@ -83,7 +83,7 @@ class FireDetectionProcessorTest {
     fireDetectionProcessor.processVideoFireDetection(event);
 
     // Then
-    ArgumentCaptor<FireDetectionNotified> alertCaptor = 
+    ArgumentCaptor<FireDetectionNotified> alertCaptor =
         ArgumentCaptor.forClass(FireDetectionNotified.class);
     verify(fireDetectionEventPublisher).publishFireDetectionNotification(alertCaptor.capture());
 
@@ -102,7 +102,7 @@ class FireDetectionProcessorTest {
     fireDetectionProcessor.processVideoFireDetection(event);
 
     // Then
-    ArgumentCaptor<FireDetectionNotified> alertCaptor = 
+    ArgumentCaptor<FireDetectionNotified> alertCaptor =
         ArgumentCaptor.forClass(FireDetectionNotified.class);
     verify(fireDetectionEventPublisher).publishFireDetectionNotification(alertCaptor.capture());
 
@@ -119,7 +119,7 @@ class FireDetectionProcessorTest {
     fireDetectionProcessor.processVideoFireDetection(event);
 
     // Then
-    ArgumentCaptor<FireDetectionNotified> alertCaptor = 
+    ArgumentCaptor<FireDetectionNotified> alertCaptor =
         ArgumentCaptor.forClass(FireDetectionNotified.class);
     verify(fireDetectionEventPublisher).publishFireDetectionNotification(alertCaptor.capture());
 
@@ -176,7 +176,7 @@ class FireDetectionProcessorTest {
     fireDetectionProcessor.processVideoFireDetection(event);
 
     // Then
-    ArgumentCaptor<FireDetectionNotified> alertCaptor = 
+    ArgumentCaptor<FireDetectionNotified> alertCaptor =
         ArgumentCaptor.forClass(FireDetectionNotified.class);
     verify(fireDetectionEventPublisher).publishFireDetectionNotification(alertCaptor.capture());
 

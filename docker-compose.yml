@@ -158,9 +158,9 @@ services:
       # Kafka Configuration (Local)
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - KAFKA_TOPIC_ANOMALY=datalake.sensorDataAnomalyDetected
-      - KAFKA_TOPIC_DATA_SAVED=datalake.sensorDataSaved
-      - KAFKA_TOPIC_SENSOR_DATA=datalake.sensorData
+      - KAFKA_TOPIC_ANOMALY=dataLake.sensorDataAnomalyDetected
+      - KAFKA_TOPIC_DATA_SAVED=dataLake.sensorDataSaved
+      - KAFKA_TOPIC_SENSOR_DATA=dataLake.sensorData
       # Mock Server Configuration
       - MOCK_SERVER_URL=http://mock-server:8001
       - MOCK_SERVER_DATA_COUNT=10
@@ -264,8 +264,8 @@ services:
     environment:
       - ALERT_ENVIRONMENT=local
       - ALERT_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - ALERT_KAFKA_WARNING_TOPIC=controltower.warningAlertIssued
-      - ALERT_KAFKA_EMERGENCY_TOPIC=controltower.emergencyAlertIssued
+      - ALERT_KAFKA_WARNING_TOPIC=controlTower.warningAlertIssued
+      - ALERT_KAFKA_EMERGENCY_TOPIC=controlTower.emergencyAlertIssued
       - ALERT_KAFKA_GROUP_ID=alert-service
       - ALERT_KAFKA_ALERT_SUCCESS_TOPIC=alert.alertSendSuccess
       - ALERT_KAFKA_ALERT_FAIL_TOPIC=alert.alertSendFail

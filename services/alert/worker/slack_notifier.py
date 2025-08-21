@@ -76,7 +76,7 @@ class SlackNotifier:
 
         # Determine severity and emoji
         severity = data.get('severity', 'UNKNOWN')
-        if topic == 'controltower.emergencyAlertIssued':
+        if topic == 'controlTower.emergencyAlertIssued':
             emoji = "🚨"
             color = "danger"
         else:
