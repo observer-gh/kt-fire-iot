@@ -55,6 +55,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 배포 전 현재 latest의 SHA 저장
+      - name: Store current latest SHA
+        run: |
+          echo "📋 Storing current latest SHA for rollback..."
+          CURRENT_SHA=$(az webapp config container show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-controltower \
+            --query "containerSettings.image" \
+            --output tsv 2>/dev/null | grep -o '[a-f0-9]\{40\}' || echo "latest")
+          echo "CURRENT_SHA=$CURRENT_SHA" >> $GITHUB_ENV
+          echo "📋 Current latest SHA: $CURRENT_SHA"
+
       - name: Build and Push ControlTower image
         uses: docker/build-push-action@v5
         with:
@@ -101,6 +113,48 @@ jobs:
             --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
             --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
 
+          # 서비스 재시작 (새 이미지 적용)
+          echo "🔄 Restarting ControlTower service to apply new image..."
+          az webapp restart \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-controltower
+
+          # 재시작 후 잠시 대기
+          echo "⏳ Waiting for service to restart..."
+          sleep 30
+
+          # 헬스 체크 및 배포 검증
+          echo "🏥 Performing health check..."
+          HEALTH_CHECK_RETRIES=3
+          HEALTH_CHECK_DELAY=10
+
+          for i in $(seq 1 $HEALTH_CHECK_RETRIES); do
+            echo "🔍 Health check attempt $i/$HEALTH_CHECK_RETRIES..."
+            
+            # Web App 상태 확인
+            WEBAPP_STATUS=$(az webapp show \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-controltower \
+              --query "state" \
+              --output tsv)
+            
+            if [ "$WEBAPP_STATUS" = "Running" ]; then
+              echo "✅ Web App is running successfully!"
+              break
+            else
+              echo "⚠️ Web App status: $WEBAPP_STATUS"
+              if [ $i -lt $HEALTH_CHECK_RETRIES ]; then
+                echo "⏳ Waiting $HEALTH_CHECK_DELAY seconds before retry..."
+                sleep $HEALTH_CHECK_DELAY
+              else
+                echo "❌ Health check failed after $HEALTH_CHECK_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+          echo "✅ Health check passed!"
+
           # 배포 상태 확인
           echo "🔍 Checking deployment status..."
           az webapp show \
@@ -110,3 +164,54 @@ jobs:
             --output table
 
           echo "✅ ControlTower service deployment to Azure Web App Container completed successfully!"
+
+  # 실패 시 롤백 job
+  rollback-on-failure:
+    if: failure()
+    needs: build-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Rollback ControlTower service
+        run: |
+          echo "🔄 Rolling back ControlTower service due to deployment failure..."
+
+          # Azure 로그인
+          echo "🔐 Logging into Azure for rollback..."
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > azure_credentials.json
+          az login --service-principal \
+            --username $(cat azure_credentials.json | jq -r .clientId) \
+            --password $(cat azure_credentials.json | jq -r .clientSecret) \
+            --tenant $(cat azure_credentials.json | jq -r .tenantId)
+
+          # 구독 설정
+          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+          # 이전 버전으로 롤백 (저장된 SHA 또는 latest)
+          if [ "${{ env.CURRENT_SHA }}" != "latest" ]; then
+            echo "🔄 Rolling back to previous SHA: ${{ env.CURRENT_SHA }}"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-controltower \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-controltower:${{ env.CURRENT_SHA }} \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          else
+            echo "🔄 Rolling back to latest tag"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-controltower \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-controltower:latest \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          fi
+
+          # 롤백 후 서비스 재시작
+          echo "🔄 Restarting service after rollback..."
+          az webapp restart \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-controltower
+
+          echo "✅ Rollback completed successfully!"
