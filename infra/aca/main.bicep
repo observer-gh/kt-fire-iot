@@ -529,6 +529,18 @@ resource dataLakeDashboardApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'datalake-dashboard'
         }
         {
+          name: 'MOCK_SERVER_HOST'
+          value: mockServerApp.properties.defaultHostName
+        }
+        {
+          name: 'MOCK_SERVER_PORT'
+          value: '8001'
+        }
+        {
+          name: 'DEFAULT_VIDEO_FILE'
+          value: 'sample1.mp4'
+        }
+        {
           name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
           value: 'https://${appInsights.properties.InstrumentationKey}.live.applicationinsights.azure.com/v2.1/traces'
         }
