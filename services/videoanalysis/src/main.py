@@ -6,15 +6,42 @@ from .config import Config
 from .websocket_client import StompWebSocketClient
 from .frame_processor import FrameProcessor
 from .models import ControlMessage
+from .azure_vision_client import AzureVisionClient
+from .event_publisher import EventPublisher
 
 
 class VideoAnalysisService:
     """Main video analysis service that connects to mock server and processes frames"""
 
     def __init__(self):
-        self.frame_processor = FrameProcessor()
+        # Initialize Azure Vision client if credentials are available
+        azure_vision_client = None
+        if Config.AZURE_VISION_ENDPOINT and Config.AZURE_VISION_KEY:
+            try:
+                azure_vision_client = AzureVisionClient(
+                    Config.AZURE_VISION_ENDPOINT,
+                    Config.AZURE_VISION_KEY
+                )
+                logger.info(
+                    "Azure Vision client initialized for fire detection")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to initialize Azure Vision client: {e}")
+        else:
+            logger.warning(
+                "Azure Vision credentials not provided - fire detection disabled")
+
+        # Initialize event publisher
+        event_publisher = EventPublisher()
+        if not event_publisher.is_available():
+            logger.warning(
+                "Kafka not available - events will not be published")
+
+        self.frame_processor = FrameProcessor(
+            azure_vision_client, event_publisher)
         self.ws_client = StompWebSocketClient(
             self.frame_processor.process_frame)
+        self.event_publisher = event_publisher
         self.running = False
 
         # Setup signal handlers for graceful shutdown
@@ -100,6 +127,10 @@ class VideoAnalysisService:
 
         # Disconnect WebSocket
         self.ws_client.disconnect()
+
+        # Close event publisher
+        if hasattr(self, 'event_publisher'):
+            self.event_publisher.close()
 
         # Log final stats
         stats = self.frame_processor.get_frame_stats()

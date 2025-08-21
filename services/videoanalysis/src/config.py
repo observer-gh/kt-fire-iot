@@ -22,5 +22,23 @@ class Config:
     # Video files to request
     DEFAULT_VIDEO_FILE = os.getenv('DEFAULT_VIDEO_FILE', 'sample1.mp4')
 
+    # Azure Computer Vision
+    AZURE_VISION_ENDPOINT = os.getenv('AZURE_VISION_ENDPOINT')
+    AZURE_VISION_KEY = os.getenv('AZURE_VISION_KEY')
+
+    # Fire Detection
+    FIRE_DETECTION_CONFIDENCE_THRESHOLD = int(
+        os.getenv('FIRE_DETECTION_CONFIDENCE_THRESHOLD', '70'))
+    FIRE_DETECTION_INTERVAL_SECONDS = int(
+        os.getenv('FIRE_DETECTION_INTERVAL_SECONDS', '20'))
+
+    # Kafka
+    KAFKA_BOOTSTRAP_SERVERS = os.getenv(
+        'KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+    FIRE_DETECTED_TOPIC = 'rtVideoAnalysis.fireDetected'
+
+    # Service
+    SERVICE_NAME = 'videoanalysis'
+
     # Logging
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
