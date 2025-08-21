@@ -59,6 +59,7 @@ services=(
     "datalake-dashboard:kt-fire-iot-datalake-dashboard"
     "alert:kt-fire-iot-alert"
     "mock-server:kt-fire-iot-mock-server"
+    "videoanalysis:kt-fire-iot-videoanalysis"
 )
 
 # Function to check a single image

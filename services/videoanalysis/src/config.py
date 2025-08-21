@@ -32,10 +32,17 @@ class Config:
     FIRE_DETECTION_INTERVAL_SECONDS = int(
         os.getenv('FIRE_DETECTION_INTERVAL_SECONDS', '20'))
 
-    # Kafka
+    # Environment
+    ENVIRONMENT = os.getenv('PROFILE', 'local')  # local, cloud
+    
+    # Kafka (for local development)
     KAFKA_BOOTSTRAP_SERVERS = os.getenv(
         'KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
     FIRE_DETECTED_TOPIC = 'rtVideoAnalysis.fireDetected'
+    
+    # Azure Event Hub (for cloud)
+    EVENTHUB_CONNECTION_STRING = os.getenv('EVENTHUB_CONNECTION_STRING')
+    EVENTHUB_FIRE_DETECTED_TOPIC = 'rtVideoAnalysis.fireDetected'
 
     # Service
     SERVICE_NAME = 'videoanalysis'
