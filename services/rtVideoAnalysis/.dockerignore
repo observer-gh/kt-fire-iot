@@ -38,7 +38,6 @@ ENV/
 *.log
 logs/
 
-
 # Test coverage
 .coverage
 htmlcov/
@@ -48,7 +47,34 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Tests
+tests/
+test_*.py
+
+# Docker
+Dockerfile
+.dockerignore
 
 # Temporary files
 *.tmp
 *.temp
+
+# Video files (exclude large video files from build context)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.flv
+*.wmv
+*.webm
+
+
+
