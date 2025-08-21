@@ -52,6 +52,12 @@ class AlertWorker:
         """Start the alert worker"""
         self.running = True
         logger.info("Alert worker started")
+        
+        # 환경 정보 로깅
+        logger.info(f"Environment: {settings.environment}")
+        logger.info(f"Kafka Bootstrap Servers: {settings.kafka_bootstrap_servers}")
+        logger.info(f"Kafka Security Protocol: {settings.kafka_security_protocol}")
+        logger.info(f"Azure Event Hub Connection: {'Configured' if settings.azure_eventhub_connection_string else 'Not configured'}")
 
         try:
             # Start heartbeat task
@@ -61,7 +67,13 @@ class AlertWorker:
             await self.consumer.start()
         except Exception as e:
             logger.error(f"Error in alert worker: {e}")
-            await asyncio.sleep(5)
+            # Azure 환경에서 연결 실패 시 재시도 로직
+            if settings.kafka_security_protocol == 'SASL_SSL':
+                logger.info("Retrying connection in 10 seconds...")
+                await asyncio.sleep(10)
+                await self.start()
+            else:
+                await asyncio.sleep(5)
 
     async def stop(self):
         """Stop the alert worker"""
@@ -87,9 +99,35 @@ class AlertWorker:
 async def main():
     worker = AlertWorker()
     try:
+        # Start the worker
         await worker.start()
+        
+        # Keep the main thread alive
+        logger.info("Alert worker is running. Press Ctrl+C to stop.")
+        while worker.running:
+            try:
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Unexpected error in main loop: {e}")
+                await asyncio.sleep(5)
+                
     except KeyboardInterrupt:
+        logger.info("Received interrupt signal, shutting down...")
         await worker.stop()
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}")
+        await worker.stop()
+    finally:
+        logger.info("Alert worker service stopped")
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Process interrupted by user")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        exit(1)
