@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     batch_interval_minutes: int = int(os.getenv("BATCH_INTERVAL_MINUTES", "10"))
     storage_path: str = os.getenv("STORAGE_PATH", "./local_storage")
     
+    # Azure Storage settings (for File Share)
+    azure_storage_account_name: Optional[str] = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+    azure_storage_account_key: Optional[str] = os.getenv("AZURE_STORAGE_ACCOUNT_KEY")
+    azure_file_share_name: Optional[str] = os.getenv("AZURE_FILE_SHARE_NAME")
+    
     # Service settings
     service_port: int = int(os.getenv("SERVICE_PORT", "8080"))
     service_host: str = os.getenv("SERVICE_HOST", "0.0.0.0")

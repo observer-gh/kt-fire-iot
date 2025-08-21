@@ -172,6 +172,10 @@ services:
       - BATCH_SIZE=100
       - BATCH_INTERVAL_MINUTES=10
       - STORAGE_PATH=/app/local_storage
+      # Azure Storage Configuration (optional, for cloud deployment)
+      - AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME:-}
+      - AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY:-}
+      - AZURE_FILE_SHARE_NAME=${AZURE_FILE_SHARE_NAME:-}
       # Service Configuration
       - SERVICE_PORT=8080
       - SERVICE_HOST=0.0.0.0
@@ -218,6 +222,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - STORAGE_PATH=/app/local_storage
       # Logging and Monitoring
       - LOG_LEVEL=INFO
     volumes:

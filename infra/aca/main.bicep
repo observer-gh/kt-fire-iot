@@ -240,6 +240,30 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
   }
 }
 
+// Storage Account for DataLake File Share
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+  name: 'fireiot${environment}${take(uniqueString(resourceGroup().id), 5)}'
+  location: location
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
+  properties: {
+    accessTier: 'Hot'
+    allowBlobPublicAccess: false
+    minimumTlsVersion: 'TLS1_2'
+    supportsHttpsTrafficOnly: true
+  }
+}
+
+// File Share for DataLake storage
+resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-01-01' = {
+  name: '${storageAccount.name}/default/datalake-storage'
+  properties: {
+    shareQuota: 1024 // 1 TiB as you requested
+  }
+}
+
 
 
 // App Service Plan
@@ -348,6 +372,31 @@ resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'WEBSITES_PORT'
           value: '8080'
+        }
+        {
+          name: 'AZURE_STORAGE_ACCOUNT_NAME'
+          value: storageAccount.name
+        }
+        {
+          name: 'AZURE_STORAGE_ACCOUNT_KEY'
+          value: storageAccount.listKeys().keys[0].value
+        }
+        {
+          name: 'AZURE_FILE_SHARE_NAME'
+          value: 'datalake-storage'
+        }
+        {
+          name: 'STORAGE_PATH'
+          value: '/mnt/fileshare'
+        }
+      ]
+      azureStorageAccounts: [
+        {
+          type: 'AzureFiles'
+          accountName: storageAccount.name
+          shareName: 'datalake-storage'
+          accessKey: storageAccount.listKeys().keys[0].value
+          mountPath: '/mnt/fileshare'
         }
       ]
     }
@@ -526,3 +575,6 @@ output postgresFacilityManagementServerFqdn string = postgresFacilityManagementS
 output redisHostName string = redisCache.properties.hostName
 output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
 output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
+output storageAccountName string = storageAccount.name
+output storageAccountKey string = storageAccount.listKeys().keys[0].value
+output fileShareName string = 'datalake-storage'
