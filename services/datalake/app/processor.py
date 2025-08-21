@@ -13,31 +13,31 @@ class DataProcessor:
             "min": -50.0,
             "max": 100.0,
             "warn": 80.0,
-            "emergency": 95.0
+            "emergency": 100.0
         },
         "humidity": {
             "min": 0.0,
             "max": 100.0,
-            "warn": 90.0,
-            "emergency": 98.0
+            "warn": 95.0,
+            "emergency": 97.5
         },
         "smoke_density": {
             "min": 0.0,
             "max": 999.999,
-            "warn": 100.0,
-            "emergency": 500.0
+            "warn": 0.200,
+            "emergency": 0.600
         },
         "co_level": {
             "min": 0.0,
             "max": 999.999,
-            "warn": 50.0,
-            "emergency": 200.0
+            "warn": 0.100,
+            "emergency": 0.300
         },
         "gas_level": {
             "min": 0.0,
             "max": 999.999,
-            "warn": 100.0,
-            "emergency": 500.0
+            "warn": 0.150,
+            "emergency": 0.475
         }
     }
 
@@ -49,7 +49,7 @@ class DataProcessor:
         cleaned_data = cls._clean_values(raw_data)
 
         # Check for anomalies using cleaned data
-        is_anomaly, anomaly_metric, anomaly_value, anomaly_threshold = cls._check_anomalies(cleaned_data)
+        is_anomaly, anomaly_metric, anomaly_value, anomaly_threshold, severity = cls._check_anomalies(cleaned_data)
 
         # Create processed data
         processed_data = ProcessedSensorData(
@@ -67,6 +67,7 @@ class DataProcessor:
             anomaly_metric=anomaly_metric,
             anomaly_value=anomaly_value,
             anomaly_threshold=anomaly_threshold,
+            severity=severity or "WARN",
             metadata=raw_data.metadata
         )
 
@@ -120,7 +121,7 @@ class DataProcessor:
         return cleaned_data
 
     @classmethod
-    def _check_anomalies(cls, data: RawSensorData) -> Tuple[bool, Optional[str], Optional[float], Optional[float]]:
+    def _check_anomalies(cls, data: RawSensorData) -> Tuple[bool, Optional[str], Optional[float], Optional[float], Optional[str]]:
         """Check if any sensor values trigger anomalies"""
         
         # Check temperature
@@ -128,30 +129,50 @@ class DataProcessor:
             thresholds = cls.THRESHOLDS["temperature"]
             if data.temperature >= thresholds["emergency"]:
                 print(f"🚨 온도 비상 이상치: {data.temperature} >= {thresholds['emergency']}")
-                return True, "temperature", data.temperature, thresholds["emergency"]
+                return True, "temperature", data.temperature, thresholds["emergency"], "EMERGENCY"
             elif data.temperature >= thresholds["warn"]:
                 print(f"⚠️ 온도 경고 이상치: {data.temperature} >= {thresholds['warn']}")
-                return True, "temperature", data.temperature, thresholds["warn"]
+                return True, "temperature", data.temperature, thresholds["warn"], "WARN"
+
+        # Check humidity
+        if data.humidity is not None:
+            thresholds = cls.THRESHOLDS["humidity"]
+            if data.humidity >= thresholds["emergency"]:
+                print(f"🚨 습도 비상 이상치: {data.humidity} >= {thresholds['emergency']}")
+                return True, "humidity", data.humidity, thresholds["emergency"], "EMERGENCY"
+            elif data.humidity >= thresholds["warn"]:
+                print(f"⚠️ 습도 경고 이상치: {data.humidity} >= {thresholds['warn']}")
+                return True, "humidity", data.humidity, thresholds["warn"], "WARN"
 
         # Check smoke_density
         if data.smoke_density is not None:
             thresholds = cls.THRESHOLDS["smoke_density"]
             if data.smoke_density >= thresholds["emergency"]:
                 print(f"🚨 연기 비상 이상치: {data.smoke_density} >= {thresholds['emergency']}")
-                return True, "smoke_density", data.smoke_density, thresholds["emergency"]
+                return True, "smoke_density", data.smoke_density, thresholds["emergency"], "EMERGENCY"
             elif data.smoke_density >= thresholds["warn"]:
                 print(f"⚠️ 연기 경고 이상치: {data.smoke_density} >= {thresholds['warn']}")
-                return True, "smoke_density", data.smoke_density, thresholds["warn"]
+                return True, "smoke_density", data.smoke_density, thresholds["warn"], "WARN"
 
         # Check co_level
         if data.co_level is not None:
             thresholds = cls.THRESHOLDS["co_level"]
             if data.co_level >= thresholds["emergency"]:
                 print(f"🚨 CO 비상 이상치: {data.co_level} >= {thresholds['emergency']}")
-                return True, "co_level", data.co_level, thresholds["emergency"]
+                return True, "co_level", data.co_level, thresholds["emergency"], "EMERGENCY"
             elif data.co_level >= thresholds["warn"]:
                 print(f"⚠️ CO 경고 이상치: {data.co_level} >= {thresholds['warn']}")
-                return True, "co_level", data.co_level, thresholds["warn"]
+                return True, "co_level", data.co_level, thresholds["warn"], "WARN"
+
+        # Check gas_level
+        if data.gas_level is not None:
+            thresholds = cls.THRESHOLDS["gas_level"]
+            if data.gas_level >= thresholds["emergency"]:
+                print(f"🚨 가스 비상 이상치: {data.gas_level} >= {thresholds['emergency']}")
+                return True, "gas_level", data.gas_level, thresholds["emergency"], "EMERGENCY"
+            elif data.gas_level >= thresholds["warn"]:
+                print(f"⚠️ 가스 경고 이상치: {data.gas_level} >= {thresholds['warn']}")
+                return True, "gas_level", data.gas_level, thresholds["warn"], "WARN"
 
         # 이상치가 없을 때는 로그 출력하지 않음
-        return False, None, None, None
+        return False, None, None, None, None
