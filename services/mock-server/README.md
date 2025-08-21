@@ -13,7 +13,7 @@ Fire IoT 시스템을 위한 Mock Server입니다.
 - **애플리케이션**: http://localhost:8001
 - **Swagger UI**: http://localhost:8001/swagger-ui.html
 
-### API 경로
+### REST API 경로
 
 - **시설**: `/mock/facility`
 - **장비**: `/mock/equipment`
@@ -26,15 +26,15 @@ Fire IoT 시스템을 위한 Mock Server입니다.
 - **CCTV 스트리밍**: `/api/cctv/*`
 
 ## 📹 CCTV 스트리밍 기능
-
-브로드캐스트 가능.
-mock-server를 실행하면 웹소켓 열림
+웹소켓을 통해 실시간으로 동영상 스트리밍 데이터를 전송
+- 브로드캐스트 가능
+- mock-server를 실행하면 웹소켓 열림
 
 ### WebSocket 엔드포인트
 - **WebSocket 연결**: `/cctv-websocket`
 - **스트림 구독**: `/topic/cctv-stream`
 
-### 스트림 활용 예시
+### 스트리밍 활용 예시
 - resources > static > cctv-player.html 그리고  multi-socket-test.html참고
 
 
