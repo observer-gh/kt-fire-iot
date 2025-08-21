@@ -29,8 +29,8 @@ def setup_test_environment():
     
     # Kafka 설정 (호스트 포트 9092)
     os.environ["KAFKA_BROKERS"] = "localhost:9092"
-    os.environ["KAFKA_TOPIC_ANOMALY"] = "datalake.sensorDataAnomalyDetected"
-    os.environ["KAFKA_TOPIC_DATA_SAVED"] = "datalake.sensorDataSaved"
+    os.environ["KAFKA_TOPIC_ANOMALY"] = "dataLake.sensorDataAnomalyDetected"
+    os.environ["KAFKA_TOPIC_DATA_SAVED"] = "dataLake.sensorDataSaved"
     
     # 기타 설정
     os.environ["STORAGE_TYPE"] = "mock"
@@ -74,8 +74,8 @@ TEST_CONFIG = {
     },
     'kafka_config': {
         'bootstrap_servers': 'localhost:9092',
-        'topic_anomaly': 'datalake.sensorDataAnomalyDetected',
-        'topic_data_saved': 'datalake.sensorDataSaved'
+        'topic_anomaly': 'dataLake.sensorDataAnomalyDetected',
+        'topic_data_saved': 'dataLake.sensorDataSaved'
     }
 }
 

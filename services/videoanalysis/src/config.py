@@ -38,11 +38,11 @@ class Config:
     # Kafka (for local development)
     KAFKA_BOOTSTRAP_SERVERS = os.getenv(
         'KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
-    FIRE_DETECTED_TOPIC = 'rtVideoAnalysis.fireDetected'
+    FIRE_DETECTED_TOPIC = 'videoAnalysis.fireDetected'
     
     # Azure Event Hub (for cloud)
     EVENTHUB_CONNECTION_STRING = os.getenv('EVENTHUB_CONNECTION_STRING')
-    EVENTHUB_FIRE_DETECTED_TOPIC = 'rtVideoAnalysis.fireDetected'
+    EVENTHUB_FIRE_DETECTED_TOPIC = 'videoAnalysis.fireDetected'
 
     # Service
     SERVICE_NAME = 'videoanalysis'

@@ -4,6 +4,7 @@ import com.fireiot.controltower.events.WarningAlertIssued;
 import com.fireiot.controltower.events.EmergencyAlertIssued;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -14,12 +15,18 @@ public class AlertEventPublisher {
 
   private final KafkaTemplate<String, Object> kafkaTemplate;
 
+  @Value("${kafka.topics.warning-alert-issued:controlTower.warningAlertIssued}")
+  private String warningAlertTopic;
+
+  @Value("${kafka.topics.emergency-alert-issued:controlTower.emergencyAlertIssued}")
+  private String emergencyAlertTopic;
+
   public AlertEventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
     this.kafkaTemplate = kafkaTemplate;
   }
 
   public void publishWarningAlert(WarningAlertIssued alert) {
-    String topic = "controltower.warningAlertIssued";
+    String topic = warningAlertTopic;
     logger.info("Publishing warning alert to topic: {}, alertId: {}", topic, alert.getAlertId());
 
     try {
@@ -32,7 +39,7 @@ public class AlertEventPublisher {
   }
 
   public void publishEmergencyAlert(EmergencyAlertIssued alert) {
-    String topic = "controltower.emergencyAlertIssued";
+    String topic = emergencyAlertTopic;
     logger.info("Publishing emergency alert to topic: {}, alertId: {}", topic, alert.getAlertId());
 
     try {
