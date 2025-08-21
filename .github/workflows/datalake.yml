@@ -70,6 +70,29 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 배포 전 현재 latest의 SHA 저장
+      - name: Store current latest SHA for DataLake API
+        run: |
+          echo "📋 Storing current latest SHA for DataLake API rollback..."
+          CURRENT_API_SHA=$(az webapp config container show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-datalake-api \
+            --query "containerSettings.image" \
+            --output tsv 2>/dev/null | grep -o '[a-f0-9]\{40\}' || echo "latest")
+          echo "CURRENT_API_SHA=$CURRENT_API_SHA" >> $GITHUB_ENV
+          echo "📋 Current DataLake API SHA: $CURRENT_API_SHA"
+
+      - name: Store current latest SHA for DataLake Dashboard
+        run: |
+          echo "📋 Storing current latest SHA for DataLake Dashboard rollback..."
+          CURRENT_DASHBOARD_SHA=$(az webapp config container show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-datalake-dashboard \
+            --query "containerSettings.image" \
+            --output tsv 2>/dev/null | grep -o '[a-f0-9]\{40\}' || echo "latest")
+          echo "CURRENT_DASHBOARD_SHA=$CURRENT_DASHBOARD_SHA" >> $GITHUB_ENV
+          echo "📋 Current DataLake Dashboard SHA: $CURRENT_DASHBOARD_SHA"
+
       - name: Build and Push DataLake API image
         uses: docker/build-push-action@v5
         with:
@@ -262,25 +285,47 @@ jobs:
           # 구독 설정
           az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-          # DataLake API 서비스 롤백
-          echo "🔄 Rolling back DataLake API service to previous version (latest)..."
-          az webapp config container set \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --name app-dev-datalake-api \
-            --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-api:latest \
-            --container-registry-url https://index.docker.io/v1/ \
-            --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
-            --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+                    # DataLake API 서비스 롤백 (저장된 SHA 또는 latest)
+          if [ "${{ env.CURRENT_API_SHA }}" != "latest" ]; then
+            echo "🔄 Rolling back DataLake API service to previous SHA: ${{ env.CURRENT_API_SHA }}"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-datalake-api \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-api:${{ env.CURRENT_API_SHA }} \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          else
+            echo "🔄 Rolling back DataLake API service to latest tag"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-datalake-api \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-api:latest \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          fi
 
-          # DataLake Dashboard 서비스 롤백
-          echo "🔄 Rolling back DataLake Dashboard service to previous version (latest)..."
-          az webapp config container set \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --name app-dev-datalake-dashboard \
-            --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-dashboard:latest \
-            --container-registry-url https://index.docker.io/v1/ \
-            --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
-            --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          # DataLake Dashboard 서비스 롤백 (저장된 SHA 또는 latest)
+          if [ "${{ env.CURRENT_DASHBOARD_SHA }}" != "latest" ]; then
+            echo "🔄 Rolling back DataLake Dashboard service to previous SHA: ${{ env.CURRENT_DASHBOARD_SHA }}"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-datalake-dashboard \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-dashboard:${{ env.CURRENT_DASHBOARD_SHA }} \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          else
+            echo "🔄 Rolling back DataLake Dashboard service to latest tag"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-datalake-dashboard \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-datalake-dashboard:latest \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          fi
 
           # 롤백 후 서비스들 재시작
           echo "🔄 Restarting services after rollback..."

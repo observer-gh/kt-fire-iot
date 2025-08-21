@@ -55,6 +55,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 배포 전 현재 latest의 SHA 저장
+      - name: Store current latest SHA
+        run: |
+          echo "📋 Storing current latest SHA for rollback..."
+          CURRENT_SHA=$(az webapp config container show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name app-dev-mock-server \
+            --query "containerSettings.image" \
+            --output tsv 2>/dev/null | grep -o '[a-f0-9]\{40\}' || echo "latest")
+          echo "CURRENT_SHA=$CURRENT_SHA" >> $GITHUB_ENV
+          echo "📋 Current latest SHA: $CURRENT_SHA"
+
       - name: Build and Push MockServer image
         uses: docker/build-push-action@v5
         with:
@@ -175,15 +187,26 @@ jobs:
           # 구독 설정
           az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-          # 이전 버전(latest)으로 롤백
-          echo "🔄 Rolling back to previous version (latest)..."
-          az webapp config container set \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --name app-dev-mock-server \
-            --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:latest \
-            --container-registry-url https://index.docker.io/v1/ \
-            --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
-            --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          # 이전 버전으로 롤백 (저장된 SHA 또는 latest)
+          if [ "${{ env.CURRENT_SHA }}" != "latest" ]; then
+            echo "🔄 Rolling back to previous SHA: ${{ env.CURRENT_SHA }}"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-mock-server \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:${{ env.CURRENT_SHA }} \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          else
+            echo "🔄 Rolling back to latest tag"
+            az webapp config container set \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name app-dev-mock-server \
+              --container-image-name ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:latest \
+              --container-registry-url https://index.docker.io/v1/ \
+              --container-registry-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --container-registry-password ${{ secrets.DOCKERHUB_TOKEN }}
+          fi
 
           # 롤백 후 서비스 재시작
           echo "🔄 Restarting service after rollback..."
