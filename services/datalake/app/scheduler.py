@@ -119,8 +119,8 @@ class BatchScheduler:
                     if save_success:
                         saved_count += 1
                         
-                        # sensorDataSaved 이벤트 발행 (flush 시에만)
-                        self.kafka_publisher.publish_data_saved(processed_data, f"redis_flush_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}")
+                        # 개별 이벤트 발행 제거 - 배치로 처리
+                        # self.kafka_publisher.publish_data_saved(processed_data, f"redis_flush_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}")
                         
                     else:
                         logger.error(f"센서 데이터 저장 실패: {sensor_data.get('equipment_id', 'unknown')}")
@@ -185,6 +185,21 @@ class BatchScheduler:
                     except Exception as e:
                         logger.error(f"메타데이터 생성/저장 중 오류 발생: {e}")
                         # 메타데이터 오류는 전체 flush를 막지 않음
+                    
+                    # 배치로 sensorDataSaved 이벤트 발행 (개별 발행 대신)
+                    if data_list:
+                        try:
+                            # 대표 데이터로 이벤트 발행 (장비 수와 처리된 데이터 수 포함)
+                            representative_data = data_list[0]
+                            batch_info = f"redis_flush_{timestamp}_batch_{saved_count}_equipment"
+                            
+                            self.kafka_publisher.publish_data_saved(
+                                representative_data, 
+                                batch_info
+                            )
+                            logger.info(f"배치 sensorDataSaved 이벤트 발행: {saved_count}개 장비 데이터 flush 완료")
+                        except Exception as e:
+                            logger.error(f"배치 sensorDataSaved 이벤트 발행 실패: {e}")
                         
                 else:
                     logger.warning("Redis 센서 데이터 정리 실패")

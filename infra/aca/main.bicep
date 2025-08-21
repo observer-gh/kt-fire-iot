@@ -193,6 +193,47 @@ resource alertFailTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-prev
   }
 }
 
+// Additional Topics for ControlTower (제거됨 - Event Hub 제한으로 인해)
+// resource warningNotificationTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+//   parent: eventHubNamespace
+//   name: 'alert.warningNotificationCreated'
+//   properties: {
+//     messageRetentionInDays: 7
+//     partitionCount: 4
+//     status: 'Active'
+//   }
+// }
+
+// resource emergencyTriggeredTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+//   parent: eventHubNamespace
+//   name: 'alert.emergencyAlertTriggered'
+//   properties: {
+//     messageRetentionInDays: 7
+//     partitionCount: 4
+//     status: 'Active'
+//   }
+// }
+
+// resource equipmentUpdateTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+//   parent: eventHubNamespace
+//   name: 'controlTower.equipmentStateUpdateRequested'
+//   properties: {
+//     messageRetentionInDays: 7
+//     partitionCount: 4
+//     status: 'Active'
+//   }
+// }
+
+// resource maintenanceRequestTopic 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
+//   parent: eventHubNamespace
+//   name: 'facilityManagement.maintenanceRequested'
+//   properties: {
+//     messageRetentionInDays: 7
+//     partitionCount: 4
+//     status: 'Active'
+//   }
+// }
+
 // Event Hub Authorization Rule
 resource eventHubAuthRule 'Microsoft.EventHub/namespaces/authorizationRules@2023-01-01-preview' = {
   parent: eventHubNamespace
@@ -205,6 +246,45 @@ resource eventHubAuthRule 'Microsoft.EventHub/namespaces/authorizationRules@2023
     ]
   }
 }
+
+// Consumer Groups
+resource datalakeDashboardConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: controlTowerFireNotifiedTopic
+  name: 'datalake-dashboard'
+}
+
+resource controlTowerConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: sensorAnomalyDetectedTopic
+  name: 'controltower-group'
+}
+
+// Alert Service Consumer Groups
+resource alertServiceWarningConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: warningAlertTopic
+  name: 'alert-service-group'
+}
+
+resource alertServiceEmergencyConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: emergencyAlertTopic
+  name: 'alert-service-group'
+}
+
+// VideoAnalysis Consumer Group (필요시만 사용)
+// resource videoAnalysisConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+//   parent: videoAnalysisFireDetectedTopic
+//   name: 'videoanalysis-group'
+// }
+
+// DataLake API Consumer Groups (필요시만 사용)
+// resource datalakeApiConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+//   parent: sensorAnomalyDetectedTopic
+//   name: 'datalake-api-group'
+// }
+
+// resource datalakeApiDataSavedConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+//   parent: sensorDataSavedTopic
+//   name: 'datalake-api-group'
+// }
 
 // PostgreSQL Server for DataLake API
 resource postgresDatalakeServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-preview' = {
@@ -381,29 +461,30 @@ resource controlTowerApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'KAFKA_TOPIC_ALERT_FAIL'
           value: 'alert.alertSendFail'
         }
-        {
-          name: 'KAFKA_TOPIC_WARNING_NOTIFICATION'
-          value: 'alert.warningNotificationCreated'
-        }
-        {
-          name: 'KAFKA_TOPIC_EMERGENCY_TRIGGERED'
-          value: 'alert.emergencyAlertTriggered'
-        }
-        {
-          name: 'KAFKA_TOPIC_EQUIPMENT_UPDATE'
-          value: 'controlTower.equipmentStateUpdateRequested'
-        }
-        {
-          name: 'KAFKA_TOPIC_MAINTENANCE'
-          value: 'facilityManagement.maintenanceRequested'
-        }
+        // 제거된 토픽들 (Event Hub 제한으로 인해)
+        // {
+        //   name: 'KAFKA_TOPIC_WARNING_NOTIFICATION'
+        //   value: 'alert.warningNotificationCreated'
+        // }
+        // {
+        //   name: 'KAFKA_TOPIC_EMERGENCY_TRIGGERED'
+        //   value: 'alert.emergencyAlertTriggered'
+        // }
+        // {
+        //   name: 'KAFKA_TOPIC_EQUIPMENT_UPDATE'
+        //   value: 'controlTower.equipmentStateUpdateRequested'
+        // }
+        // {
+        //   name: 'KAFKA_TOPIC_MAINTENANCE'
+        //   value: 'facilityManagement.maintenanceRequested'
+        // }
         {
           name: 'KAFKA_TOPIC_DATA_SAVED'
           value: 'dataLake.sensorDataSaved'
         }
         // Legacy Event Hub connection for backward compatibility
         {
-          name: 'EVENTHUB_CONNECTION_STRING'
+          name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
         {
@@ -471,6 +552,30 @@ resource dataLakeApiApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'rediss://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
         }
         {
+          name: 'KAFKA_BROKERS'
+          value: '${eventHubNamespace.name}.servicebus.windows.net:9093'
+        }
+        {
+          name: 'KAFKA_BOOTSTRAP_SERVERS'
+          value: '${eventHubNamespace.name}.servicebus.windows.net:9093'
+        }
+        {
+          name: 'KAFKA_SECURITY_PROTOCOL'
+          value: 'SASL_SSL'
+        }
+        {
+          name: 'KAFKA_SASL_MECHANISM'
+          value: 'PLAIN'
+        }
+        {
+          name: 'KAFKA_SASL_USERNAME'
+          value: '$ConnectionString'
+        }
+        {
+          name: 'KAFKA_SASL_PASSWORD'
+          value: eventHubAuthRule.listKeys().primaryConnectionString
+        }
+        {
           name: 'KAFKA_TOPIC_ANOMALY'
           value: 'dataLake.sensorDataAnomalyDetected'
         }
@@ -521,16 +626,36 @@ resource dataLakeDashboardApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'redis://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
         }
         {
+          name: 'KAFKA_BOOTSTRAP_SERVERS'
+          value: '${eventHubNamespace.name}.servicebus.windows.net:9093'
+        }
+        {
+          name: 'KAFKA_SECURITY_PROTOCOL'
+          value: 'SASL_SSL'
+        }
+        {
+          name: 'KAFKA_SASL_MECHANISM'
+          value: 'PLAIN'
+        }
+        {
+          name: 'KAFKA_SASL_USERNAME'
+          value: '$ConnectionString'
+        }
+        {
+          name: 'KAFKA_SASL_PASSWORD'
+          value: eventHubAuthRule.listKeys().primaryConnectionString
+        }
+        {
           name: 'KAFKA_TOPIC_FIRE_DETECTION'
           value: 'controlTower.fireDetectionNotified'
         }
         {
-          name: 'EVENTHUB_CONN'
-          value: eventHubAuthRule.listKeys().primaryConnectionString
+          name: 'KAFKA_CONSUMER_GROUP_ID'
+          value: 'datalake-dashboard'
         }
         {
-          name: 'EVENTHUB_CONSUMER_GROUP'
-          value: 'datalake-dashboard'
+          name: 'EVENTHUB_CONN'
+          value: eventHubAuthRule.listKeys().primaryConnectionString
         }
         {
           name: 'MOCK_SERVER_HOST'
@@ -575,6 +700,26 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'redis://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
         }
         {
+          name: 'KAFKA_BOOTSTRAP_SERVERS'
+          value: '${eventHubNamespace.name}.servicebus.windows.net:9093'
+        }
+        {
+          name: 'KAFKA_SECURITY_PROTOCOL'
+          value: 'SASL_SSL'
+        }
+        {
+          name: 'KAFKA_SASL_MECHANISM'
+          value: 'PLAIN'
+        }
+        {
+          name: 'KAFKA_SASL_USERNAME'
+          value: '$ConnectionString'
+        }
+        {
+          name: 'KAFKA_SASL_PASSWORD'
+          value: eventHubAuthRule.listKeys().primaryConnectionString
+        }
+        {
           name: 'KAFKA_WARNING_TOPIC'
           value: 'controlTower.warningAlertIssued'
         }
@@ -591,7 +736,15 @@ resource alertApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'alert.alertSendFail'
         }
         {
-          name: 'ALERT_AZURE_EVENTHUB_CONNECTION_STRING'
+          name: 'KAFKA_CONSUMER_GROUP_ID'
+          value: 'alert-service-group'
+        }
+        {
+          name: 'KAFKA_AUTO_OFFSET_RESET'
+          value: 'earliest'
+        }
+        {
+          name: 'azure_eventhub_connection_string'
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
         {
@@ -675,7 +828,23 @@ resource videoAnalysisApp 'Microsoft.Web/sites@2023-01-01' = {
           value: '${eventHubNamespace.name}.servicebus.windows.net:9093'
         }
         {
-          name: 'EVENTHUB_CONNECTION_STRING'
+          name: 'KAFKA_SECURITY_PROTOCOL'
+          value: 'SASL_SSL'
+        }
+        {
+          name: 'KAFKA_SASL_MECHANISM'
+          value: 'PLAIN'
+        }
+        {
+          name: 'KAFKA_SASL_USERNAME'
+          value: '$ConnectionString'
+        }
+        {
+          name: 'KAFKA_SASL_PASSWORD'
+          value: eventHubAuthRule.listKeys().primaryConnectionString
+        }
+        {
+          name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
         }
         {
@@ -703,6 +872,13 @@ output dockerHubOrg string = dockerHubOrg
 output eventHubNamespace string = eventHubNamespace.name
 output eventHubConnectionString string = eventHubAuthRule.listKeys().primaryConnectionString
 output sensorAnomalyDetectedTopic string = sensorAnomalyDetectedTopic.name
+output datalakeDashboardConsumerGroup string = datalakeDashboardConsumerGroup.name
+output controlTowerConsumerGroup string = controlTowerConsumerGroup.name
+output alertServiceWarningConsumerGroup string = alertServiceWarningConsumerGroup.name
+output alertServiceEmergencyConsumerGroup string = alertServiceEmergencyConsumerGroup.name
+// output videoAnalysisConsumerGroup string = videoAnalysisConsumerGroup.name
+// output datalakeApiConsumerGroup string = datalakeApiConsumerGroup.name
+// output datalakeApiDataSavedConsumerGroup string = datalakeApiDataSavedConsumerGroup.name
 output sensorDataSavedTopic string = sensorDataSavedTopic.name
 output videoAnalysisFireDetectedTopic string = videoAnalysisFireDetectedTopic.name
 output controlTowerFireNotifiedTopic string = controlTowerFireNotifiedTopic.name
@@ -710,6 +886,10 @@ output warningAlertTopic string = warningAlertTopic.name
 output emergencyAlertTopic string = emergencyAlertTopic.name
 output alertSuccessTopic string = alertSuccessTopic.name
 output alertFailTopic string = alertFailTopic.name
+// output warningNotificationTopic string = warningNotificationTopic.name
+// output emergencyTriggeredTopic string = emergencyTriggeredTopic.name
+// output equipmentUpdateTopic string = equipmentUpdateTopic.name
+// output maintenanceRequestTopic string = maintenanceRequestTopic.name
 output postgresDatalakeServerFqdn string = postgresDatalakeServer.properties.fullyQualifiedDomainName
 output postgresFacilityManagementServerFqdn string = postgresFacilityManagementServer.properties.fullyQualifiedDomainName
 output redisHostName string = redisCache.properties.hostName

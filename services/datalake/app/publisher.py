@@ -24,17 +24,33 @@ class KafkaPublisher:
         self._connect()
 
     def _connect(self):
-        """Connect to Kafka broker"""
+        """Connect to Kafka broker or Azure Event Hub"""
         try:
-            self.producer = KafkaProducer(
-                bootstrap_servers=self.bootstrap_servers,
-                value_serializer=lambda v: json.dumps(
-                    v, default=str).encode('utf-8'),
-                key_serializer=lambda k: k.encode('utf-8') if k else None
-            )
-            logger.info(f"Connected to Kafka at {self.bootstrap_servers}")
+            # Check if we're in Azure cloud environment
+            if settings.eventhub_connection_string:
+                # Azure Event Hub connection (Kafka compatible mode)
+                self.producer = KafkaProducer(
+                    bootstrap_servers=self.bootstrap_servers,
+                    security_protocol='SASL_SSL',
+                    sasl_mechanism='PLAIN',
+                    sasl_plain_username='$ConnectionString',
+                    sasl_plain_password=settings.eventhub_connection_string,
+                    value_serializer=lambda v: json.dumps(
+                        v, default=str).encode('utf-8'),
+                    key_serializer=lambda k: k.encode('utf-8') if k else None
+                )
+                logger.info(f"Connected to Azure Event Hub at {self.bootstrap_servers}")
+            else:
+                # Local Kafka connection
+                self.producer = KafkaProducer(
+                    bootstrap_servers=self.bootstrap_servers,
+                    value_serializer=lambda v: json.dumps(
+                        v, default=str).encode('utf-8'),
+                    key_serializer=lambda k: k.encode('utf-8') if k else None
+                )
+                logger.info(f"Connected to local Kafka at {self.bootstrap_servers}")
         except Exception as e:
-            logger.error(f"Failed to connect to Kafka: {e}")
+            logger.error(f"Failed to connect to Kafka/Event Hub: {e}")
             self.producer = None
 
     def publish_anomaly_detected(self, processed_data: ProcessedSensorData) -> bool:
@@ -82,9 +98,12 @@ class KafkaPublisher:
         This method is called ONLY when sensor data is flushed from Redis to local storage.
         It should NOT be called for real-time data ingestion.
         
+        Note: For Redis flush operations, this method is called ONCE per batch (not per individual sensor data)
+        to avoid excessive event publishing.
+        
         Args:
-            processed_data: The processed sensor data that was saved
-            filepath: Path or identifier where data was saved (e.g., "redis_flush", "batch_upload")
+            processed_data: The processed sensor data that was saved (representative data for batch)
+            filepath: Path or identifier where data was saved (e.g., "redis_flush_batch_X_equipment", "batch_upload")
         """
         if not self.producer:
             logger.error("Kafka producer not connected")
