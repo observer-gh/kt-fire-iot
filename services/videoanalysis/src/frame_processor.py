@@ -90,6 +90,7 @@ class FrameProcessor:
             # Remove data URL prefix if present
             if base64_data.startswith('data:image'):
                 base64_data = base64_data.split(',')[1]
+                base64_data += "="*(-len(base64_data) % 4)
 
             # Decode Base64
             image_bytes = base64.b64decode(base64_data)
