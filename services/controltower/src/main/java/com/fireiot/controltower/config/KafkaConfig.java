@@ -1,6 +1,7 @@
 package com.fireiot.controltower.config;
 
 import com.fireiot.controltower.events.SensorAnomalyDetected;
+import com.fireiot.controltower.events.VideoFireDetected;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -23,7 +24,7 @@ public class KafkaConfig {
   private String bootstrapServers;
 
   @Bean
-  public ConsumerFactory<String, SensorAnomalyDetected> consumerFactory() {
+  public ConsumerFactory<String, SensorAnomalyDetected> sensorAnomalyConsumerFactory() {
     Map<String, Object> props = new HashMap<>();
     props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
     props.put(ConsumerConfig.GROUP_ID_CONFIG, "controltower-group");
@@ -31,18 +32,38 @@ public class KafkaConfig {
     props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
     props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
     props.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-    props.put(JsonDeserializer.TYPE_MAPPINGS,
-        "sensorAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected");
 
     return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(),
         new JsonDeserializer<>(SensorAnomalyDetected.class));
   }
 
   @Bean
-  public ConcurrentKafkaListenerContainerFactory<String, SensorAnomalyDetected> kafkaListenerContainerFactory() {
+  public ConsumerFactory<String, VideoFireDetected> videoFireDetectedConsumerFactory() {
+    Map<String, Object> props = new HashMap<>();
+    props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+    props.put(ConsumerConfig.GROUP_ID_CONFIG, "controltower-group");
+    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
+    props.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+
+    return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(),
+        new JsonDeserializer<>(VideoFireDetected.class));
+  }
+
+  @Bean
+  public ConcurrentKafkaListenerContainerFactory<String, SensorAnomalyDetected> sensorAnomalyKafkaListenerContainerFactory() {
     ConcurrentKafkaListenerContainerFactory<String, SensorAnomalyDetected> factory =
         new ConcurrentKafkaListenerContainerFactory<>();
-    factory.setConsumerFactory(consumerFactory());
+    factory.setConsumerFactory(sensorAnomalyConsumerFactory());
+    return factory;
+  }
+
+  @Bean
+  public ConcurrentKafkaListenerContainerFactory<String, VideoFireDetected> videoFireDetectedKafkaListenerContainerFactory() {
+    ConcurrentKafkaListenerContainerFactory<String, VideoFireDetected> factory =
+        new ConcurrentKafkaListenerContainerFactory<>();
+    factory.setConsumerFactory(videoFireDetectedConsumerFactory());
     return factory;
   }
 
