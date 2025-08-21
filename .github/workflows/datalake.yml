@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - "services/datalake/**"
+      - "services/mock-server/**"
   pull_request:
     branches: [main]
     paths:
       - "services/datalake/**"
+      - "services/mock-server/**"
   workflow_dispatch:
 
 jobs:
@@ -28,6 +30,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build MockServer image (dependency)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/mock-server
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/kt-fire-iot-mock-server:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build DataLake API image
         uses: docker/build-push-action@v5

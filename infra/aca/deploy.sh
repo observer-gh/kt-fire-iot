@@ -58,6 +58,7 @@ services=(
     "datalake-api:kt-fire-iot-datalake-api"
     "datalake-dashboard:kt-fire-iot-datalake-dashboard"
     "alert:kt-fire-iot-alert"
+    "mock-server:kt-fire-iot-mock-server"
 )
 
 for service_info in "${services[@]}"; do
