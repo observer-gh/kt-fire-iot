@@ -521,8 +521,28 @@ resource dataLakeDashboardApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'redis://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:6380'
         }
         {
+          name: 'KAFKA_TOPIC_FIRE_DETECTION'
+          value: 'controlTower.fireDetectionNotified'
+        }
+        {
           name: 'EVENTHUB_CONN'
           value: eventHubAuthRule.listKeys().primaryConnectionString
+        }
+        {
+          name: 'EVENTHUB_CONSUMER_GROUP'
+          value: 'datalake-dashboard'
+        }
+        {
+          name: 'MOCK_SERVER_HOST'
+          value: mockServerApp.properties.defaultHostName
+        }
+        {
+          name: 'MOCK_SERVER_PORT'
+          value: '8001'
+        }
+        {
+          name: 'DEFAULT_VIDEO_FILE'
+          value: 'sample1.mp4'
         }
         {
           name: 'OTEL_EXPORTER_OTLP_ENDPOINT'

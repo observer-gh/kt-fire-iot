@@ -83,6 +83,22 @@ class SensorDataAnomalyDetectedEvent(BaseModel):
     severity: str = "WARN"  # Default severity level
 
 
+class FireDetectionNotifiedEvent(BaseModel):
+    """Fire Detection Notified event from ControlTower"""
+    version: int
+    alert_id: str
+    incident_id: str
+    facility_id: Optional[str] = None
+    equipment_location: Optional[str] = None
+    alert_type: str  # From commonEnums.json: SMOKE, GAS, CO, HEAT, POWER, COMM, CUSTOM
+    severity: str  # From commonEnums.json: INFO, WARN, EMERGENCY
+    status: str
+    created_at: str
+    description: str
+    cctv_id: Optional[str] = None
+    detection_confidence: Optional[int] = None  # 0-100
+
+
 class DataLakeEvent(BaseModel):
     """Event published to Kafka"""
     event_type: str

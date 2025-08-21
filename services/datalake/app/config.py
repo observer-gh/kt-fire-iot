@@ -18,9 +18,28 @@ class Settings(BaseSettings):
     redis_flush_interval_seconds: int = int(os.getenv("REDIS_FLUSH_INTERVAL_SECONDS", "60"))
     
     # Kafka settings
-    kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "kafka:29092")
+    kafka_bootstrap_servers: str = os.getenv("KAFKA_BROKERS", "localhost:9092")
     kafka_topic_anomaly: str = os.getenv("KAFKA_TOPIC_ANOMALY", "dataLake.sensorDataAnomalyDetected")
     kafka_topic_data_saved: str = os.getenv("KAFKA_TOPIC_DATA_SAVED", "dataLake.sensorDataSaved")
+    kafka_topic_fire_detection: str = os.getenv("KAFKA_TOPIC_FIRE_DETECTION", "controlTower.fireDetectionNotified")
+    
+    # Event Hub settings (for Azure cloud deployment)
+    eventhub_connection_string: Optional[str] = os.getenv("EVENTHUB_CONN")
+    eventhub_consumer_group: str = os.getenv("EVENTHUB_CONSUMER_GROUP", "datalake-dashboard")
+    
+    # Video Stream settings (mock server WebSocket)
+    mock_server_host: str = os.getenv("MOCK_SERVER_HOST", "localhost")
+    mock_server_port: str = os.getenv("MOCK_SERVER_PORT", "8001")
+    video_websocket_url: str = f"ws://{os.getenv('MOCK_SERVER_HOST', 'localhost')}:{os.getenv('MOCK_SERVER_PORT', '8001')}/cctv-websocket/websocket"
+    
+    # STOMP destinations for video streaming
+    video_control_destination: str = "/app/cctv/control"
+    video_stream_subscription: str = "/topic/cctv-stream"
+    video_control_subscription: str = "/topic/cctv-control"
+    
+    # Video settings
+    default_video_file: str = os.getenv("DEFAULT_VIDEO_FILE", "sample1.mp4")
+    video_frame_buffer_size: int = int(os.getenv("VIDEO_FRAME_BUFFER_SIZE", "10"))  # Keep last N frames
     
     # Mock Server settings
     mock_server_url: str = os.getenv("MOCK_SERVER_URL", "http://localhost:8081")
