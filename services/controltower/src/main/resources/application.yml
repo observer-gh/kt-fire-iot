@@ -1,10 +1,3 @@
-spring:
-  application:
-    name: controltower
-  profiles:
-    active: local
-  # Database configuration removed - ControlTower doesn't need a database
-
 management:
   endpoints:
     web:
@@ -35,40 +28,14 @@ springdoc:
     contact:
       name: Fire IoT MSA Team
 
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
-    consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID:controltower-group}
-      auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
-        spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,dataLake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-    properties:
-      # Azure Event Hub specific properties (ignored for local Kafka)
-      "[security.protocol]": ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      "[sasl.mechanism]": ${KAFKA_SASL_MECHANISM:}
-      "[sasl.jaas.config]": ${KAFKA_SASL_CONFIG:}
-    topics:
-      sensor-anomaly-detected: ${KAFKA_TOPIC_SENSOR_ANOMALY:dataLake.sensorDataAnomalyDetected}
-      video-fire-detected: ${KAFKA_TOPIC_VIDEO_FIRE:videoAnalysis.fireDetected}
-      fire-detection-notified: ${KAFKA_TOPIC_FIRE_NOTIFY:controlTower.fireDetectionNotified}
-      warning-alert-issued: ${KAFKA_TOPIC_WARNING_ALERT:controlTower.warningAlertIssued}
-      emergency-alert-issued: ${KAFKA_TOPIC_EMERGENCY_ALERT:controlTower.emergencyAlertIssued}
-
 # Logging
 logging:
   level:
     com.fireiot.controltower: INFO
     org.springframework.web: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    "[org.hibernate.SQL]": DEBUG
+    "[org.hibernate.type.descriptor.sql.BasicBinder]": TRACE
 
----
 # Local Profile
 spring:
   config:
@@ -80,11 +47,16 @@ spring:
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:controltower-group}
       auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.trusted.packages: "*"
         spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,dataLake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
+        spring.json.value.default.type: com.fireiot.controltower.events.SensorAnomalyDetected
+        spring.json.fail.on.unknown.properties: false
+        spring.json.use.type.headers: false
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -104,18 +76,23 @@ spring:
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:controltower-group}
       auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.trusted.packages: "*"
         spring.json.type.mapping: "videoAnalysis.fireDetected:com.fireiot.controltower.events.VideoFireDetected,dataLake.sensorDataAnomalyDetected:com.fireiot.controltower.events.SensorAnomalyDetected"
+        spring.json.value.default.type: com.fireiot.controltower.events.SensorAnomalyDetected
+        spring.json.fail.on.unknown.properties: false
+        spring.json.use.type.headers: false
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     properties:
       # Azure Event Hub configuration (injected by Bicep)
-      "[security.protocol]": ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
-      "[sasl.mechanism]": ${KAFKA_SASL_MECHANISM:PLAIN}
+      "[security.protocol]": SASL_SSL
+      "[sasl.mechanism]": PLAIN
       "[sasl.jaas.config]": ${KAFKA_SASL_CONFIG}
 
 logging:
