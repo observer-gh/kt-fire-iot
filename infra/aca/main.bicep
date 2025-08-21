@@ -176,9 +176,14 @@ resource postgresDatalakeServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-
     storage: {
       storageSizeGB: 32
     }
-    network: {
-      delegatedSubnetResourceId: vnet.properties.subnets[1].id
-      privateDnsZoneArmResourceId: privateDnsZone.id
+    // Remove private network configuration for public access
+    // network: {
+    //   delegatedSubnetResourceId: vnet.properties.subnets[1].id
+    //   privateDnsZoneArmResourceId: privateDnsZone.id
+    // }
+    // Allow public access for App Service connectivity
+    networkRuleSet: {
+      defaultAction: 'Allow'
     }
   }
 }
@@ -198,9 +203,14 @@ resource postgresFacilityManagementServer 'Microsoft.DBforPostgreSQL/flexibleSer
     storage: {
       storageSizeGB: 32
     }
-    network: {
-      delegatedSubnetResourceId: vnet.properties.subnets[1].id
-      privateDnsZoneArmResourceId: privateDnsZone.id
+    // Remove private network configuration for public access
+    // network: {
+    //   delegatedSubnetResourceId: vnet.properties.subnets[1].id
+    //   privateDnsZoneArmResourceId: privateDnsZone.id
+    // }
+    // Allow public access for App Service connectivity
+    networkRuleSet: {
+      defaultAction: 'Allow'
     }
   }
 }
