@@ -1,3 +1,7 @@
+import io
+import base64
+import re
+from PIL import Image
 import json
 import threading
 import time
@@ -23,14 +27,19 @@ class StompWebSocketClient:
         for attempt in range(max_retries):
             try:
                 logger.info(
-                    f"Attempting WebSocket connection (attempt {attempt + 1}/{max_retries})")
+                    f"Attempting WebSocket({Config.WEBSOCKET_URL}) connection (attempt {attempt + 1}/{max_retries})")
 
                 self.ws = websocket.WebSocketApp(
+                    # e.g. wss://.../cctv-websocket[/websocket]
                     Config.WEBSOCKET_URL,
+                    # header={
+                    #     "Origin": Config.CLIENT_ORIGIN or "https://app-dev-videoanalysis.azurewebsites.net"},
+                    # # <- important on Azure
+                    # subprotocols=["v12.stomp"],
                     on_open=self._on_open,
                     on_message=self._on_message,
                     on_error=self._on_error,
-                    on_close=self._on_close
+                    on_close=self._on_close,
                 )
 
                 # Run in separate thread
@@ -71,18 +80,30 @@ class StompWebSocketClient:
         ws.send(connect_frame)
 
     def _on_message(self, ws, message):
-        """Handle incoming WebSocket messages"""
         try:
-            if message.startswith("CONNECTED"):
-                self.connected = True
-                logger.info("STOMP connection established")
-                self._subscribe_to_streams()
-
-            elif message.startswith("MESSAGE"):
-                self._handle_stomp_message(message)
-
+            # SockJS control frames
+            if message == 'o' or message == 'h':
+                return
+            # SockJS data frame(s): a["STOMP", ...]
+            if message.startswith('a'):
+                frames = json.loads(message[1:])    # strip leading 'a'
+                for frame in frames:
+                    self._handle_possible_stomp(frame)
+                return
+            # Raw STOMP (local)
+            self._handle_possible_stomp(message)
         except Exception as e:
             logger.error(f"Error handling message: {e}")
+
+    def _handle_possible_stomp(self, msg: str):
+        if msg.startswith("CONNECTED"):
+            self.connected = True
+            logger.info("STOMP connection established")
+            self._subscribe_to_streams()
+        elif msg.startswith("MESSAGE"):
+            self._handle_stomp_message(msg)
+        elif msg.startswith("ERROR"):
+            logger.error(f"STOMP ERROR frame: {msg.splitlines()[:6]}")
 
     def _on_error(self, ws, error):
         """Handle WebSocket errors"""
@@ -112,53 +133,83 @@ class StompWebSocketClient:
         self.subscribed = True
         logger.info("Subscribed to CCTV streams")
 
-    def _handle_stomp_message(self, message):
-        """Parse and handle STOMP MESSAGE frames"""
+    # --- replace _handle_stomp_message with header/body checks ---
+
+    def _handle_stomp_message(self, message: str):
         try:
-            lines = message.split('\n')
+            head, body_plus = message.split('\n\n', 1)
             headers = {}
-            body_start = 0
-
-            # Parse headers
-            for i, line in enumerate(lines[1:], 1):
-                if line == '':
-                    body_start = i + 1
-                    break
+            for line in head.splitlines()[1:]:
                 if ':' in line:
-                    key, value = line.split(':', 1)
-                    headers[key] = value
+                    k, v = line.split(':', 1)
+                    headers[k] = v
+            body = body_plus.split('\x00', 1)[0]
+            logger.debug(f"SAMPLE headers={headers} bodyStart={body[:120]!r}")
+            dest = headers.get('destination', '')
+            ctype = headers.get('content-type', '').lower()
 
-            # Get message body
-            body = '\n'.join(lines[body_start:]).rstrip('\x00')
-
-            if not body:
+            if dest != Config.STREAM_SUBSCRIPTION or 'application/json' not in ctype:
+                # not the frame stream; ignore or log small preview
+                logger.debug(
+                    f"skip non-stream frame dest={dest} ctype={ctype} body[:60]={body[:60]!r}")
                 return
 
-            # Parse JSON body
             data = json.loads(body)
-            destination = headers.get('destination', '')
-
-            if destination == Config.STREAM_SUBSCRIPTION:
-                self._handle_frame_message(data)
-            elif destination == Config.CONTROL_SUBSCRIPTION:
-                self._handle_control_response(data)
+            self._handle_frame_message(data)
 
         except Exception as e:
             logger.error(f"Error parsing STOMP message: {e}")
 
-    def _handle_frame_message(self, data):
-        """Handle incoming video frame data"""
-        try:
-            frame = CctvFrame(
-                frame_number=data.get('frameNumber', 0),
-                image_data=data.get('imageData', ''),
-                timestamp=data.get('timestamp', 0),
-                video_file_name=data.get('videoFileName', '')
-            )
-            self.on_frame_received(frame)
 
-        except Exception as e:
-            logger.error(f"Error handling frame: {e}")
+# --- in _handle_frame_message, make decoding robust ---
+
+
+    def _handle_frame_message(self, payload):
+        import re
+        import base64
+        import io
+        from PIL import Image
+
+        b64 = (payload.get('data')                    # <-- primary
+               or payload.get('imageData')
+               or payload.get('image')
+               or payload.get('frame') or '')
+
+        if not b64:
+            logger.debug(f"no b64 field; keys={list(payload.keys())[:8]}")
+            return
+
+        # strip data URI + whitespace/newlines
+        if b64.startswith('data:'):
+            b64 = b64.split(',', 1)[1]
+        b64 = re.sub(r'\s+', '', b64)
+        b64 += "=" * (-len(b64) % 4)
+
+        try:
+            raw = base64.b64decode(b64, validate=False)
+
+        except Exception:
+            # fallback for urlsafe
+            raw = base64.urlsafe_b64decode(b64 + "=" * (-len(b64) % 4))
+
+        # quick magic check (JPEG/PNG/GIF)
+        if not (raw.startswith(b'\xFF\xD8\xFF') or raw.startswith(b'\x89PNG\r\n\x1a\n') or raw.startswith(b'GIF8')):
+            logger.error(
+                f"not image bytes; magic={raw[:16].hex()} len={len(raw)}")
+            return
+
+        # verify & hand off
+        img = Image.open(io.BytesIO(raw))
+        img.verify()
+        img = Image.open(io.BytesIO(raw))  # re-open for actual use
+
+        frame = CctvFrame(
+            frame_number=payload.get('frameNumber', 0),
+            image_data=b64,
+            timestamp=payload.get('timestamp', 0),
+            video_file_name=payload.get('videoPath', '')
+        )
+        self.on_frame_received(frame)
 
     def _handle_control_response(self, data):
         """Handle control command responses"""

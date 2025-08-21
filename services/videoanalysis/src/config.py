@@ -8,7 +8,17 @@ class Config:
     # Mock server WebSocket settings
     MOCK_SERVER_HOST = os.getenv('MOCK_SERVER_HOST', 'localhost')
     MOCK_SERVER_PORT = os.getenv('MOCK_SERVER_PORT', '8001')
-    WEBSOCKET_URL = f"ws://{MOCK_SERVER_HOST}:{MOCK_SERVER_PORT}/cctv-websocket/websocket"
+
+    # Environment detection
+    ENVIRONMENT = os.getenv('PROFILE', 'local')  # local, cloud
+
+    # Use different URLs for local vs cloud
+    if ENVIRONMENT == 'cloud':
+        # Azure Web Apps - use SockJS endpoint
+        WEBSOCKET_URL = f"wss://{MOCK_SERVER_HOST}/cctv-websocket/websocket"
+    else:
+        # Local development uses custom port with SockJS
+        WEBSOCKET_URL = f"ws://{MOCK_SERVER_HOST}:{MOCK_SERVER_PORT}/cctv-websocket/websocket"
 
     # STOMP destinations
     CONTROL_DESTINATION = "/app/cctv/control"
