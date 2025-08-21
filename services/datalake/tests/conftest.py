@@ -29,9 +29,8 @@ def setup_test_environment():
     
     # Kafka 설정 (호스트 포트 9092)
     os.environ["KAFKA_BROKERS"] = "localhost:9092"
-    os.environ["KAFKA_TOPIC_ANOMALY"] = "fire-iot.sensorDataAnomalyDetected"
-    os.environ["KAFKA_TOPIC_DATA_SAVED"] = "fire-iot.sensorDataSaved"
-    os.environ["KAFKA_TOPIC_SENSOR_DATA"] = "fire-iot.sensor-data"
+    os.environ["KAFKA_TOPIC_ANOMALY"] = "datalake.sensorDataAnomalyDetected"
+    os.environ["KAFKA_TOPIC_DATA_SAVED"] = "datalake.sensorDataSaved"
     
     # 기타 설정
     os.environ["STORAGE_TYPE"] = "mock"
@@ -75,9 +74,8 @@ TEST_CONFIG = {
     },
     'kafka_config': {
         'bootstrap_servers': 'localhost:9092',
-        'topic_anomaly': 'fire-iot.sensorDataAnomalyDetected',
-        'topic_data_saved': 'fire-iot.sensorDataSaved',
-        'topic_sensor_data': 'fire-iot.sensor-data'
+        'topic_anomaly': 'datalake.sensorDataAnomalyDetected',
+        'topic_data_saved': 'datalake.sensorDataSaved'
     }
 }
 

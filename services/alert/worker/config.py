@@ -8,18 +8,22 @@ class Settings(BaseSettings):
 
     # Kafka Configuration (for local)
     kafka_bootstrap_servers: str = "localhost:9092"
-    kafka_warning_topic: str = "WarningNotificationCreated"
-    kafka_emergency_topic: str = "EmergencyAlertTriggered"
+    kafka_warning_topic: str = "controltower.warningAlertIssued"
+    kafka_emergency_topic: str = "controltower.emergencyAlertIssued"
     kafka_group_id: str = "alert-service"
+    
+    # Alert result topics
+    kafka_alert_success_topic: str = "alert.alertSendSuccess"
+    kafka_alert_fail_topic: str = "alert.alertSendFail"
 
     # Azure Event Hubs Configuration (for cloud)
     azure_eventhub_connection_string: Optional[str] = None
-    azure_eventhub_warning_topic: str = "WarningNotificationCreated"
-    azure_eventhub_emergency_topic: str = "EmergencyAlertTriggered"
+    azure_eventhub_warning_topic: str = "controltower.warningAlertIssued"
+    azure_eventhub_emergency_topic: str = "controltower.emergencyAlertIssued"
     azure_eventhub_consumer_group: str = "$Default"
 
     # Slack Configuration
-    slack_webhook_url: Optional[str] = "https://hooks.slack.com/services/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"
+    slack_webhook_url: Optional[str] = "https://hooks.slack.com/services/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"
 
     class Config:
         env_file = ".env"

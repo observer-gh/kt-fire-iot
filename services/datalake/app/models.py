@@ -77,8 +77,9 @@ class SensorDataAnomalyDetectedEvent(BaseModel):
     value: float
     threshold: float
     rule_id: Optional[str] = None
-    measured_at: datetime
-    detected_at: datetime = Field(default_factory=datetime.utcnow)
+    measured_at: str  # ISO format string for OffsetDateTime compatibility
+    detected_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    severity: str = "WARN"  # Default severity level
 
 
 class DataLakeEvent(BaseModel):

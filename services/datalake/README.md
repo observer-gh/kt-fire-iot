@@ -2,6 +2,23 @@
 
 Data ingestion and streaming processing service for IoT fire monitoring.
 
+## 🏗️ Architecture
+
+### Data Flow
+
+1. **Real-time Data Ingestion**: 센서 데이터는 Mock Server나 외부 API에서 수신되어 Redis에 저장됩니다.
+2. **Redis Storage**: 모든 센서 데이터는 Redis에 실시간으로 저장되어 빠른 접근이 가능합니다.
+3. **Periodic Flush**: 1분 간격으로 Redis의 데이터를 로컬 스토리지에 flush합니다.
+4. **Event Publishing**: `sensorDataSaved` Kafka 이벤트는 flush 시에만 발행됩니다.
+5. **Anomaly Detection**: 이상치 탐지는 실시간으로 수행되며 즉시 `sensorDataAnomalyDetected` 이벤트가 발행됩니다.
+
+### Key Components
+
+- **Redis Client**: 센서 데이터의 임시 저장소 역할
+- **Batch Scheduler**: Redis flush와 배치 업로드를 관리
+- **Storage Service**: 로컬 스토리지에 데이터를 영구 저장
+- **Kafka Publisher**: 이벤트 발행을 담당
+
 ## 🚀 Quick Start
 
 ### With Docker Compose (Recommended)
@@ -36,6 +53,7 @@ docker run -d --name datalake-api --network fire-iot-network -p 8084:8080 \
   -e KAFKA_BROKERS=kafka:29092 \
   -e STORAGE_TYPE=mock \
   -e BATCH_SIZE=100 \
+  -e REDIS_FLUSH_INTERVAL_SECONDS=60 \
   -e MOCK_SERVER_URL=http://mock-server:8081 \
   -e MOCK_SERVER_DATA_COUNT=10 \
   -e MOCK_SERVER_DATA_FETCH_INTERVAL=5 \
@@ -70,7 +88,7 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501 --server.addres
 ### Core APIs
 
 - `GET /healthz` - Health check with Redis and Mock Server status
-- `GET /redis/status` - Redis connection status and info
+- `GET /redis/status` - Redis connection status and info (includes sensor data count)
 - `GET /stats` - Service statistics and storage info (with Redis caching)
 - `GET /docs` - API documentation (Swagger UI)
 
@@ -78,15 +96,25 @@ streamlit run app/dashboard/main_dashboard.py --server.port=8501 --server.addres
 
 #### Mock Server Integration (New)
 
-- `POST /ingest` - **Mock Server에서 실시간 데이터를 가져와서 처리** (기본 기능)
-- `POST /ingest/stream` - Mock Server에서 스트리밍 데이터를 가져와서 처리
-- `POST /ingest/batch` - Mock Server에서 배치 데이터를 가져와서 처리
-- `GET /mock-scheduler/status` - Mock Data Scheduler 상태 확인
-- `POST /trigger-mock-data-process` - Mock 데이터 처리 강제 실행
+- `POST /ingest` - **Mock Server에서 실시간 데이터를 가져와서 Redis에 저장**
+- `POST /ingest/stream` - Mock Server에서 스트리밍 데이터를 가져와서 Redis에 저장
+- `POST /ingest/batch` - Mock Server에서 배치 데이터를 가져와서 Redis에 저장
+
+#### Redis Management APIs (New)
+
+- `POST /trigger-redis-flush` - Redis 데이터를 강제로 로컬 스토리지에 flush
+
+#### Mock Data Scheduler Control APIs (New)
+
+- `GET /scheduler/mock/status` - Mock Data Scheduler 상태 확인
+- `POST /scheduler/mock/start` - Mock Data Scheduler 시작
+- `POST /scheduler/mock/stop` - Mock Data Scheduler 중지
+- `POST /scheduler/mock/restart` - Mock Data Scheduler 재시작
+- `POST /scheduler/mock/force-process` - Mock 데이터 처리 강제 실행 (스케줄러 상태와 무관)
 
 #### External API Integration (Legacy)
 
-- `POST /ingest/external` - 외부 API에서 센서 데이터 수신 (기존 기능 유지)
+- `POST /ingest/external` - 외부 API에서 센서 데이터 수신하여 Redis에 저장
 
 ### Storage & Batch APIs
 
@@ -188,6 +216,26 @@ curl http://localhost:8084/healthz
 External API → DataLake (clean/process) → Database → Redis Cache → Storage → Kafka → Other Services
 ```
 
+## 📈 Performance & Monitoring
+
+### Redis Metrics
+
+- **Sensor Data Count**: Redis에 저장된 현재 센서 데이터 개수
+- **Flush Interval**: 설정된 Redis flush 간격 (기본값: 60초)
+- **Connection Status**: Redis 연결 상태 및 응답 시간
+
+### Event Publishing
+
+- **Anomaly Events**: 이상치 탐지 시 즉시 발행 (`sensorDataAnomalyDetected`)
+- **Data Saved Events**: Redis flush 시에만 발행 (`sensorDataSaved`)
+- **Batch Events**: 배치 업로드 시 발행
+
+### Storage Efficiency
+
+- **Real-time Storage**: Redis를 통한 빠른 데이터 접근
+- **Batch Persistence**: 주기적인 로컬 스토리지 flush로 데이터 영속성 보장
+- **Memory Management**: flush 후 Redis 데이터 자동 정리
+
 ## 🗄️ Redis Caching
 
 The DataLake service now includes Redis caching for improved performance:
@@ -215,9 +263,9 @@ The DataLake service now includes Redis caching for improved performance:
 
 ### Kafka Topics
 
-- `fire-iot.sensorDataAnomalyDetected` - Anomaly detection events
-- `fire-iot.sensorDataSaved` - Data saved to storage events
-- `fire-iot.sensor-data` - Normal sensor readings
+- `datalake.sensorDataAnomalyDetected` - Anomaly detection events
+- `datalake.sensorDataSaved` - Data saved to storage events
+- `datalake.sensorData` - Legacy sensor data events (deprecated)
 
 ## 🗄️ Storage Types
 
@@ -279,7 +327,7 @@ curl -X POST http://localhost:8084/ingest \
 
 ### Batch Processing Test
 
-```bash
+````bash
 # Send 100 records to trigger batch upload
 for i in {1..100}; do
   curl -X POST http://localhost:8084/ingest \
@@ -292,6 +340,25 @@ for i in {1..100}; do
 done
 
 # Check batch upload status
+curl http://localhost:8084/storage/batches
+
+### Mock Data Scheduler Control
+
+```bash
+# Check scheduler status
+curl http://localhost:8084/scheduler/mock/status
+
+# Start the scheduler
+curl -X POST http://localhost:8084/scheduler/mock/start
+
+# Stop the scheduler
+curl -X POST http://localhost:8084/scheduler/mock/stop
+
+# Restart the scheduler
+curl -X POST http://localhost:8084/scheduler/mock/restart
+
+# Force process mock data once (even if scheduler is stopped)
+curl -X POST http://localhost:8084/scheduler/mock/force-process
 curl http://localhost:8084/stats
 
 # Manually trigger batch upload
@@ -299,7 +366,7 @@ curl -X POST http://localhost:8084/trigger-batch-upload
 
 # View uploaded batches (MockStorage only)
 curl http://localhost:8084/storage/batches
-```
+````
 
 ### Health Check
 
@@ -398,3 +465,81 @@ chmod +x deploy-dashboard.sh
 - **Batch scheduler status**
 - **Storage statistics (MockStorage)**
 - **Uploaded batches tracking**
+
+## 🔄 Data Processing Flow
+
+### 1. Real-time Data Ingestion
+
+```bash
+# Mock Server에서 실시간 데이터 수신 및 Redis 저장
+curl -X POST http://localhost:8080/ingest
+
+# 외부 API에서 데이터 수신 및 Redis 저장
+curl -X POST http://localhost:8080/ingest/external \
+  -H "Content-Type: application/json" \
+  -d '{
+    "equipment_id": "sensor_001",
+    "facility_id": "facility_001",
+    "measured_at": "2024-01-01T12:00:00Z",
+    "temperature": 25.5,
+    "humidity": 60.0
+  }'
+```
+
+### 2. Redis Data Management
+
+```bash
+# Redis 상태 및 센서 데이터 개수 확인
+curl http://localhost:8080/redis/status
+
+# 강제 Redis flush 실행
+curl -X POST http://localhost:8080/trigger-redis-flush
+```
+
+### 3. Monitoring & Statistics
+
+```bash
+# 서비스 통계 확인 (Redis 데이터 개수 포함)
+curl http://localhost:8080/stats
+
+# 배치 업로드 강제 실행
+curl -X POST http://localhost:8080/trigger-batch-upload
+```
+
+## 📡 Event Publishing Rules
+
+### Kafka Event Types
+
+#### 1. sensorDataAnomalyDetected
+
+- **When**: 이상치 탐지 시 즉시 발행
+- **Topic**: `datalake.sensorDataAnomalyDetected`
+- **Usage**: 실시간 알림 및 경고 시스템
+
+#### 2. sensorDataSaved ⚠️ IMPORTANT
+
+- **When**: Redis flush 시에만 발행 (1분 간격)
+- **Topic**: `datalake.sensorDataSaved`
+- **Usage**: 데이터 영속성 확인 및 배치 처리
+- **NOT for**: 실시간 데이터 수신 시
+
+#### 3. Legacy sensorData (Deprecated)
+
+- **When**: 사용하지 않음 (하위 호환성 유지)
+- **Topic**: `datalake.sensorData`
+- **Note**: 이 메서드는 Redis flush 시에만 사용되어야 함
+
+### Event Flow Diagram
+
+```
+Real-time Data → Redis Storage → Periodic Flush (1min) → Local Storage → sensorDataSaved Event
+     ↓
+Anomaly Detection → sensorDataAnomalyDetected Event (Immediate)
+```
+
+### Common Mistakes to Avoid
+
+❌ **Don't**: Call `publish_data_saved` during real-time data ingestion
+✅ **Do**: Call `publish_data_saved` only during Redis flush operations
+❌ **Don't**: Use `publish_sensor_data` for new implementations
+✅ **Do**: Use `publish_data_saved` for data persistence events

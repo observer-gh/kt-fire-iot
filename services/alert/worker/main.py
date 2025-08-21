@@ -20,11 +20,16 @@ class AlertWorker:
         try:
             # Extract topic from message or determine based on event type
             event_type = message.get('event_type', '')
-            topic = 'EmergencyAlertTriggered' if 'emergency' in event_type.lower(
-            ) else 'WarningNotificationCreated'
+            severity = message.get('severity', '')
+            
+            # Determine topic based on severity and message content
+            if severity == 'EMERGENCY' or 'emergency' in event_type.lower():
+                topic = 'controltower.emergencyAlertIssued'
+            else:
+                topic = 'controltower.warningAlertIssued'
 
             logger.info(
-                f"Processing {topic} message: {message.get('event_id', 'unknown')}")
+                f"Processing {topic} message: {message.get('alert_id', 'unknown')}")
 
             # Send to Slack
             self.slack_notifier.send_alert(message, topic)
@@ -47,6 +52,11 @@ class AlertWorker:
         """Stop the alert worker"""
         self.running = False
         await self.consumer.stop()
+        
+        # Close Kafka producer
+        if hasattr(self.slack_notifier, 'close'):
+            self.slack_notifier.close()
+            
         logger.info("Alert worker stopped")
 
 

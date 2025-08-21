@@ -52,8 +52,8 @@ class KafkaPublisher:
                 metric=processed_data.anomaly_metric,
                 value=processed_data.anomaly_value,
                 threshold=processed_data.anomaly_threshold,
-                measured_at=processed_data.measured_at,
-                detected_at=datetime.utcnow()
+                measured_at=processed_data.measured_at.replace(tzinfo=None).isoformat() + "Z",
+                detected_at=datetime.utcnow().replace(tzinfo=None).isoformat() + "Z"
             )
 
             # Publish to Kafka
@@ -76,7 +76,15 @@ class KafkaPublisher:
             return False
 
     def publish_data_saved(self, processed_data: ProcessedSensorData, filepath: str) -> bool:
-        """Publish data saved event to ControlTower"""
+        """Publish data saved event to ControlTower
+        
+        This method is called ONLY when sensor data is flushed from Redis to local storage.
+        It should NOT be called for real-time data ingestion.
+        
+        Args:
+            processed_data: The processed sensor data that was saved
+            filepath: Path or identifier where data was saved (e.g., "redis_flush", "batch_upload")
+        """
         if not self.producer:
             logger.error("Kafka producer not connected")
             return False
@@ -117,7 +125,12 @@ class KafkaPublisher:
             return False
 
     def publish_sensor_data(self, processed_data: ProcessedSensorData) -> bool:
-        """Publish processed sensor data to Kafka (legacy method)"""
+        """Publish processed sensor data to Kafka (legacy method)
+        
+        NOTE: This method should NOT be used for real-time sensor data.
+        Use publish_data_saved() instead, which is called during Redis flush operations.
+        This method is kept for backward compatibility only.
+        """
         if not self.producer:
             logger.error("Kafka producer not connected")
             return False
