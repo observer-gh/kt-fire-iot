@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCTV 스트리밍 플레이어</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .video-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        #videoCanvas {
+            border: 2px solid #333;
+            max-width: 100%;
+            height: auto;
+        }
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .info-item {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .success {
+            color: #28a745;
+        }
+        .warning {
+            color: #ffc107;
+        }
+        .video-list-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .video-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .video-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 2px solid #e9ecef;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .video-item.current {
+            border-color: #28a745;
+            background: #f8fff9;
+            transform: scale(1.02);
+            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+        }
+        .video-item.current::before {
+            content: "▶ 현재 재생 중";
+            color: #28a745;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .video-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 16px;
+        }
+        .video-info {
+            font-size: 12px;
+            color: #666;
+        }
+        .current-streaming {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+            margin-bottom: 15px;
+        }
+        .current-streaming h4 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+        }
+        .streaming-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .streaming-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .streaming-status.active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .streaming-status.inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CCTV 스트리밍 플레이어</h1>
+        
+        <div class="controls">
+            <button id="startBtn" onclick="startStreaming()">스트리밍 시작</button>
+            <button id="stopBtn" onclick="stopStreaming()" disabled>스트리밍 중지</button>
+            <button onclick="getStatus()">상태 확인</button>
+            <button onclick="getVideoList()">비디오 목록</button>
+        </div>
+
+        <div class="status" id="statusDisplay">
+            <strong>상태:</strong> <span id="connectionStatus">연결되지 않음</span>
+        </div>
+
+        <!-- 현재 스트리밍 상태 섹션 -->
+        <div class="current-streaming">
+            <h4>🎥 현재 스트리밍 상태</h4>
+            <div class="streaming-details">
+                <div>
+                    <strong>현재 비디오:</strong> <span id="currentVideoName">-</span><br>
+                    <strong>프레임 번호:</strong> <span id="currentFrameNumber">-</span><br>
+                    <strong>마지막 업데이트:</strong> <span id="lastUpdateTime">-</span>
+                </div>
+                <div>
+                    <span id="streamingStatus" class="streaming-status inactive">중지됨</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 비디오 목록 섹션 -->
+        <div class="video-list-section">
+            <h3>📹 사용 가능한 비디오 목록</h3>
+            <div id="videoList" class="video-list">
+                <!-- 비디오 목록이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+
+        <div class="info">
+            <div class="info-item">
+                <strong>현재 비디오:</strong><br>
+                <span id="currentVideo">-</span>
+            </div>
+            <div class="info-item">
+                <strong>프레임 수:</strong><br>
+                <span id="frameCount">0</span>
+            </div>
+            <div class="info-item">
+                <strong>연결 시간:</strong><br>
+                <span id="connectionTime">-</span>
+            </div>
+        </div>
+
+        <div class="video-container">
+            <canvas id="videoCanvas" width="800" height="600"></canvas>
+        </div>
+
+        <div class="log">
+            <h3>로그</h3>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let isConnected = false;
+        let frameCount = 0;
+        let connectionStartTime = null;
+        let videoFiles = [];
+
+        function connect() {
+            const socket = new SockJS('/cctv-websocket');
+            stompClient = Stomp.over(socket);
+            
+            stompClient.connect({}, function (frame) {
+                isConnected = true;
+                connectionStartTime = new Date();
+                updateConnectionStatus('연결됨', 'success');
+                log('WebSocket 연결 성공', 'success');
+                
+                // CCTV 스트림 구독
+                stompClient.subscribe('/topic/cctv-stream', function (message) {
+                    const frameData = JSON.parse(message.body);
+                    console.log(frameData);
+                    handleVideoFrame(frameData);
+                });
+                
+                updateConnectionTime();
+                enableControls();
+                
+                // 연결 후 비디오 목록 로드
+                loadVideoList();
+                
+            }, function (error) {
+                isConnected = false;
+                updateConnectionStatus('연결 실패', 'error');
+                log('WebSocket 연결 실패: ' + error, 'error');
+                disableControls();
+            });
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+                isConnected = false;
+                updateConnectionStatus('연결 해제됨', 'warning');
+                log('WebSocket 연결 해제', 'warning');
+                disableControls();
+            }
+        }
+
+        function handleVideoFrame(frameData) {
+            if (frameData.type === 'video_frame') {
+                frameCount++;
+                document.getElementById('frameCount').textContent = frameCount;
+                
+                // 현재 스트리밍 정보 업데이트
+                updateCurrentStreamingInfo(frameData);
+                
+                // Base64 이미지를 Canvas에 표시
+                const canvas = document.getElementById('videoCanvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                };
+                
+                img.src = 'data:image/jpeg;base64,' + frameData.data;
+                
+                // 로그 업데이트 (너무 자주 하지 않도록)
+                if (frameCount % 30 === 0) {
+                    log(`프레임 수신: ${frameData.frameNumber} (${frameData.videoPath})`, 'success');
+                }
+            }
+        }
+
+        // 현재 스트리밍 정보 업데이트
+        function updateCurrentStreamingInfo(frameData) {
+            if (frameData.type === 'video_frame') {
+                // 현재 비디오 이름 업데이트
+                const videoName = frameData.videoPath.split('/').pop();
+                document.getElementById('currentVideoName').textContent = videoName;
+                
+                // 프레임 번호 업데이트
+                document.getElementById('currentFrameNumber').textContent = frameData.frameNumber;
+                
+                // 마지막 업데이트 시간
+                const now = new Date();
+                document.getElementById('lastUpdateTime').textContent = now.toLocaleTimeString();
+                
+                // 스트리밍 상태 표시
+                document.getElementById('streamingStatus').textContent = '실행 중';
+                document.getElementById('streamingStatus').className = 'streaming-status active';
+                
+                // 현재 재생 중인 비디오 하이라이트
+                highlightCurrentVideo(frameData.videoPath);
+            }
+        }
+
+        // 현재 재생 중인 비디오 하이라이트
+        function highlightCurrentVideo(videoPath) {
+            // 모든 비디오 아이템에서 current 클래스 제거
+            document.querySelectorAll('.video-item').forEach(item => {
+                item.classList.remove('current');
+            });
+            
+            // 현재 재생 중인 비디오 찾아서 하이라이트
+            const videoItems = document.querySelectorAll('.video-item');
+            videoItems.forEach((item, index) => {
+                const videoName = item.querySelector('.video-name').textContent;
+                if (videoPath.includes(videoName)) {
+                    item.classList.add('current');
+                }
+            });
+        }
+
+        // 비디오 목록 로드
+        async function loadVideoList() {
+            try {
+                const response = await fetch('/api/cctv/videos');
+                const result = await response.json();
+                
+                if (result.success && result.videos) {
+                    videoFiles = result.videos;
+                    displayVideoList(result.videos);
+                    log(`비디오 목록 로드 완료: ${result.count}개`, 'success');
+                } else {
+                    log('비디오 목록 로드 실패: ' + result.message, 'error');
+                }
+            } catch (error) {
+                log('비디오 목록 로드 실패: ' + error, 'error');
+            }
+        }
+
+        // 비디오 목록을 화면에 표시
+        function displayVideoList(videos) {
+            const videoListContainer = document.getElementById('videoList');
+            videoListContainer.innerHTML = '';
+            
+            videos.forEach((video, index) => {
+                const videoItem = document.createElement('div');
+                videoItem.className = 'video-item';
+                videoItem.id = `video-${index}`;
+                
+                const videoName = video.split('/').pop(); // 파일명만 추출
+                
+                videoItem.innerHTML = `
+                    <div class="video-name">${videoName}</div>
+                    <div class="video-info">
+                        <div>순서: ${index + 1}</div>
+                        <div>경로: ${video}</div>
+                    </div>
+                `;
+                
+                videoListContainer.appendChild(videoItem);
+            });
+        }
+
+        function startStreaming() {
+            if (!isConnected) {
+                log('WebSocket이 연결되지 않았습니다. 먼저 연결해주세요.', 'error');
+                return;
+            }
+            
+            fetch('/api/cctv/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    log('스트리밍 시작 요청 성공', 'success');
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                    
+                    // 스트리밍 상태 업데이트
+                    document.getElementById('streamingStatus').textContent = '실행 중';
+                    document.getElementById('streamingStatus').className = 'streaming-status active';
+                } else {
+                    log('스트리밍 시작 실패: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                log('스트리밍 시작 요청 오류: ' + error, 'error');
+            });
+        }
+
+        function stopStreaming() {
+            fetch('/api/cctv/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    log('스트리밍 중지 요청 성공', 'success');
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                    
+                    // 스트리밍 상태 업데이트
+                    document.getElementById('streamingStatus').textContent = '중지됨';
+                    document.getElementById('streamingStatus').className = 'streaming-status inactive';
+                    
+                    // 현재 스트리밍 정보 초기화
+                    document.getElementById('currentVideoName').textContent = '-';
+                    document.getElementById('currentFrameNumber').textContent = '-';
+                    document.getElementById('lastUpdateTime').textContent = '-';
+                    
+                    // 모든 비디오 하이라이트 제거
+                    document.querySelectorAll('.video-item').forEach(item => {
+                        item.classList.remove('current');
+                    });
+                } else {
+                    log('스트리밍 중지 실패: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                log('스트리밍 중지 요청 오류: ' + error, 'error');
+            });
+        }
+
+        function getStatus() {
+            fetch('/api/cctv/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    log('상태 정보: ' + JSON.stringify(data, null, 2), 'success');
+                    
+                    // 스트리밍 상태 표시 업데이트
+                    const statusText = data.isStreaming ? '실행 중' : '중지됨';
+                    document.getElementById('streamingStatus').textContent = statusText;
+                    document.getElementById('streamingStatus').className = data.isStreaming ? 'streaming-status active' : 'streaming-status inactive';
+                    
+                    // 현재 비디오 정보 업데이트
+                    if (data.isStreaming && data.videoFiles && data.videoFiles.length > 0) {
+                        const currentVideo = data.videoFiles[data.currentVideoIndex];
+                        if (currentVideo) {
+                            document.getElementById('currentVideo').textContent = currentVideo.split('/').pop();
+                            document.getElementById('currentVideoName').textContent = currentVideo.split('/').pop();
+                            highlightCurrentVideo(currentVideo);
+                        }
+                    }
+                } else {
+                    log('상태 조회 실패: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                log('상태 조회 오류: ' + error, 'error');
+            });
+        }
+
+        function getVideoList() {
+            loadVideoList(); // 비디오 목록 새로고침
+        }
+
+        function updateConnectionStatus(status, type) {
+            const statusElement = document.getElementById('connectionStatus');
+            statusElement.textContent = status;
+            statusElement.className = type;
+        }
+
+        function updateConnectionTime() {
+            if (connectionStartTime) {
+                const timeElement = document.getElementById('connectionTime');
+                timeElement.textContent = connectionStartTime.toLocaleTimeString();
+            }
+        }
+
+        function enableControls() {
+            document.getElementById('startBtn').disabled = false;
+        }
+
+        function disableControls() {
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            
+            // 로그가 너무 많아지면 오래된 것 제거
+            if (logContainer.children.length > 100) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+            
+            // 자동 스크롤
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 페이지 로드 시 연결 시도
+        window.onload = function() {
+            log('CCTV 스트리밍 플레이어 로드됨', 'success');
+            connect();
+        };
+
+        // 페이지 종료 시 연결 해제
+        window.onbeforeunload = function() {
+            disconnect();
+        };
+    </script>
+</body>
+</html>
