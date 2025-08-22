@@ -52,12 +52,19 @@ class FireAlertManager:
         try:
             # Ensure consumer is running
             if not await self.ensure_consumer_started():
+                logger.warning("Fire detection consumer failed to start")
                 return "normal"
+
+            logger.info(
+                "Fire detection consumer is running, checking for alerts...")
 
             # Get recent fire events (last 5 minutes)
             recent_events = await get_recent_fire_events(limit=50)
 
+            logger.info(f"Retrieved {len(recent_events)} recent fire events")
+
             if not recent_events:
+                logger.info("No recent fire events found, severity: normal")
                 st.session_state.current_alert_severity = "normal"
                 st.session_state.active_fire_alerts = []
                 return "normal"
@@ -83,6 +90,9 @@ class FireAlertManager:
 
             # Determine highest severity from active alerts
             severity = self._determine_highest_severity(active_alerts)
+
+            logger.info(
+                f"Active alerts: {len(active_alerts)}, Determined severity: {severity}")
 
             # Update session state
             st.session_state.current_alert_severity = severity
