@@ -4,18 +4,45 @@ spring:
   profiles:
     active: local
   datasource:
-    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/core}
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5435/facilitymanagement}
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:postgres}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create
+      show-sql: true
   flyway:
     enabled: true
     baseline-on-migrate: true
+  
+  # Kafka 설정
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: maintenanceRequested:com.fireiot.facilitymanagement.events.MaintenanceRequested,equipmentStateUpdateRequested:com.fireiot.facilitymanagement.events.EquipmentStateUpdateRequested
+    consumer:
+      group-id: facilitymanagement-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: maintenanceRequested:com.fireiot.facilitymanagement.events.MaintenanceRequested,equipmentStateUpdateRequested:com.fireiot.facilitymanagement.events.EquipmentStateUpdateRequested
 
 server:
   port: 8080
+
+# Kafka 토픽 설정
+kafka:
+  topics:
+    maintenance-requested: facilitymanagement.maintenanceRequested
+    equipment-state-update-requested: facilitymanagement.equipmentStateUpdateRequested
+
+
 
 springdoc:
   api-docs:
@@ -27,8 +54,34 @@ springdoc:
 spring:
   config:
     activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5435/facilitymanagement
+    username: postgres
+    password: postgres
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: facilitymanagement-local-group
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+---
+spring:
+  config:
+    activate:
       on-profile: cloud
   datasource:
     url: ${POSTGRES_URL}
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:facilitymanagement-group}
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
