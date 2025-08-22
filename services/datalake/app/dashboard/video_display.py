@@ -38,7 +38,7 @@ class VideoDisplayManager:
             st.session_state.last_frame_time = None
 
     async def connect_video_stream(self) -> bool:
-        """Connect to video WebSocket"""
+        """Connect to video WebSocket (async version)"""
         try:
             if not self.video_client.state.connected:
                 success = self.video_client.connect()
@@ -59,15 +59,38 @@ class VideoDisplayManager:
             logger.error(error_msg)
             return False
 
-    async def start_video(self, video_file: str = None) -> bool:
-        """Start video streaming"""
+    def connect_video_stream_sync(self) -> bool:
+        """Connect to video WebSocket (synchronous version)"""
+        try:
+            if not self.video_client.state.connected:
+                success = self.video_client.connect()
+                if success:
+                    st.session_state.video_connected = True
+                    st.session_state.video_error = None
+                    logger.info("Video WebSocket connected")
+                    return True
+                else:
+                    error_msg = "Failed to connect to video WebSocket"
+                    st.session_state.video_error = error_msg
+                    logger.error(error_msg)
+                    return False
+            return True
+        except Exception as e:
+            error_msg = f"Video connection error: {e}"
+            st.session_state.video_error = error_msg
+            logger.error(error_msg)
+            return False
+
+    def start_video(self, video_file: str = None) -> bool:
+        """Start video streaming (synchronous version)"""
         try:
             # Ensure connected first
-            if not await self.connect_video_stream():
+            if not self.connect_video_stream_sync():
                 return False
 
             # Start streaming
-            success = await start_video_stream(video_file or st.session_state.current_video_file)
+            success = self.start_video_stream_sync(
+                video_file or st.session_state.current_video_file)
 
             if success:
                 st.session_state.video_streaming = True
@@ -89,10 +112,10 @@ class VideoDisplayManager:
             logger.error(error_msg)
             return False
 
-    async def stop_video(self) -> bool:
-        """Stop video streaming"""
+    def stop_video(self) -> bool:
+        """Stop video streaming (synchronous version)"""
         try:
-            success = await stop_video_stream()
+            success = self.stop_video_stream_sync()
 
             if success:
                 st.session_state.video_streaming = False
@@ -113,14 +136,15 @@ class VideoDisplayManager:
 
     def get_current_frame(self) -> Optional[CctvFrame]:
         """Get the latest video frame"""
-        try:
-            frame = get_latest_video_frame()
-            if frame:
-                st.session_state.last_frame_time = frame.received_at
-            return frame
-        except Exception as e:
-            logger.error(f"Error getting video frame: {e}")
-            return None
+        frame = get_latest_video_frame()
+        if frame and frame.image_data:
+            # quick sanity: head/tail & length
+            head = frame.image_data[:16]
+            st.session_state.last_frame_time = getattr(
+                frame, "received_at", None)
+            logger.debug(
+                f"frame#{getattr(frame,'frame_number',-1)} b64len={len(frame.image_data)} head={head!r}")
+        return frame
 
     def get_streaming_stats(self) -> dict:
         """Get video streaming statistics"""
@@ -129,6 +153,28 @@ class VideoDisplayManager:
         except Exception as e:
             logger.error(f"Error getting video stats: {e}")
             return {}
+
+    def start_video_stream_sync(self, video_file: str = None) -> bool:
+        """Start video streaming (synchronous version)"""
+        try:
+            if not self.video_client.state.connected:
+                if not self.video_client.connect(max_retries=3, retry_delay=5):
+                    return False
+                # Wait a moment for connection to stabilize
+                time.sleep(2)
+
+            return self.video_client.start_video_stream(video_file)
+        except Exception as e:
+            logger.error(f"Error starting video stream: {e}")
+            return False
+
+    def stop_video_stream_sync(self) -> bool:
+        """Stop video streaming (synchronous version)"""
+        try:
+            return self.video_client.stop_video_stream()
+        except Exception as e:
+            logger.error(f"Error stopping video stream: {e}")
+            return False
 
 
 def create_video_controls(video_manager: VideoDisplayManager):
@@ -151,8 +197,7 @@ def create_video_controls(video_manager: VideoDisplayManager):
     with col2:
         if st.button("▶️ Start Stream", disabled=st.session_state.video_streaming):
             with st.spinner("Starting video stream..."):
-                success = asyncio.run(
-                    video_manager.start_video(selected_video))
+                success = video_manager.start_video(selected_video)
                 if success:
                     st.success("Video stream started!")
                     st.rerun()
@@ -163,7 +208,7 @@ def create_video_controls(video_manager: VideoDisplayManager):
     with col3:
         if st.button("⏹️ Stop Stream", disabled=not st.session_state.video_streaming):
             with st.spinner("Stopping video stream..."):
-                success = asyncio.run(video_manager.stop_video())
+                success = video_manager.stop_video()
                 if success:
                     st.success("Video stream stopped!")
                     st.rerun()
@@ -175,8 +220,14 @@ def create_video_controls(video_manager: VideoDisplayManager):
 def create_video_display(video_manager: VideoDisplayManager, alert_severity: str = "normal"):
     """Create the main video display with optional alert border"""
 
-    # Get current frame
+    # Get current frame - use cached version for better performance
     current_frame = video_manager.get_current_frame()
+
+    # Cache the frame in session state to avoid repeated calls
+    if current_frame:
+        st.session_state.last_frame = current_frame
+    elif 'last_frame' in st.session_state:
+        current_frame = st.session_state.last_frame
 
     # Determine border style based on alert severity
     border_styles = {
@@ -267,7 +318,16 @@ def _show_no_video_placeholder(border_style: str):
 
 def create_video_stats(video_manager: VideoDisplayManager):
     """Create video statistics display"""
-    stats = video_manager.get_streaming_stats()
+    # Cache stats to avoid repeated calls - only update every few seconds
+    current_time = time.time()
+    if ('last_stats_time' not in st.session_state or
+            current_time - st.session_state.get('last_stats_time', 0) > 2):  # Update every 2 seconds
+
+        stats = video_manager.get_streaming_stats()
+        st.session_state.cached_stats = stats
+        st.session_state.last_stats_time = current_time
+    else:
+        stats = st.session_state.get('cached_stats', {})
 
     if stats:
         st.subheader("📊 Video Stream Statistics")
@@ -306,17 +366,19 @@ def create_video_stats(video_manager: VideoDisplayManager):
             st.error(f"❌ Error: {stats['error_message']}")
 
 
+# singleton
+@st.cache_resource
+def _get_video_manager():
+    return VideoDisplayManager()
+
+
 def render_video_section(alert_severity: str = "normal"):
     """Main function to render the complete video section"""
 
     # Initialize video manager
-    video_manager = VideoDisplayManager()
+    video_manager = _get_video_manager()
 
     st.header("📹 Live Video Stream")
-
-    # Show error if any
-    if st.session_state.video_error:
-        st.error(f"❌ {st.session_state.video_error}")
 
     # Video controls
     create_video_controls(video_manager)
@@ -331,7 +393,10 @@ def render_video_section(alert_severity: str = "normal"):
     # Statistics
     create_video_stats(video_manager)
 
-    # Auto-refresh for live streaming
+    # Auto-refresh for live streaming - using non-blocking approach
     if st.session_state.video_streaming:
-        time.sleep(1)  # Wait 1 second
-        st.rerun()  # Refresh to get new frames
+        st.markdown("🔄 **Live streaming active** - Auto-refreshing...")
+
+        # Use a more efficient approach - just indicate refresh is happening
+        # The actual refresh will be handled by Streamlit's natural flow
+        # This removes the blocking sleep that was causing lag

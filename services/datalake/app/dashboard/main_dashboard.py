@@ -62,6 +62,13 @@ def main():
         auto_refresh = st.checkbox(
             f"Auto Refresh ({refresh_interval}s)", value=True)
 
+        # Video streaming auto-refresh (faster for live video)
+        if st.session_state.get('video_streaming', False):
+            st.info("🎥 Video streaming active - faster refresh enabled")
+            video_refresh_interval = 1  # 1 second for video
+        else:
+            video_refresh_interval = refresh_interval
+
         # Sensor selection
         st.subheader("📊 Sensor Selection")
         show_temperature = st.checkbox("Temperature", value=True)
@@ -94,7 +101,12 @@ def main():
         st.metric("📡 Total Equipment", total_equipment)
 
     # Check for fire detection alerts
-    current_alert_severity = asyncio.run(get_current_alert_severity())
+    try:
+        current_alert_severity = asyncio.run(get_current_alert_severity())
+        st.sidebar.info(f"🔥 Fire Alert Status: {current_alert_severity}")
+    except Exception as e:
+        st.sidebar.error(f"🔥 Fire Alert Error: {e}")
+        current_alert_severity = "normal"
 
     # Fire alerts section
     st.markdown("---")
@@ -461,9 +473,15 @@ def main():
     st.markdown(
         f"*Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
 
-    # Auto-refresh logic
+    # Auto-refresh logic - optimized for video streaming
     if auto_refresh:
-        time.sleep(refresh_interval)
+        # Use different refresh intervals based on video streaming status
+        if st.session_state.get('video_streaming', False):
+            # Faster refresh for video streaming
+            time.sleep(video_refresh_interval)
+        else:
+            # Normal refresh for regular dashboard
+            time.sleep(refresh_interval)
         st.rerun()
 
 
